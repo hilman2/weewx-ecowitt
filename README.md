@@ -16,12 +16,12 @@ and are thrown away. A current HP2561AE Pro sends 45 fields. `weewx-interceptor`
 25 of them and logs `unrecognized parameter` for the other 20, including the lightning
 sensor, both soil probes and the whole WH52.
 
-This driver takes the field catalog from Werner Krenn's `ecowittcustom`, which is the
-most complete one there is, and adds two things:
+The raw field names come from Werner Krenn's `ecowittcustom`, which knows more of them
+than anything else. Where they belong in WeeWX is decided here, from what the sensors
+actually are. On top of that:
 
 - **New fields are not silently dropped.** A field that continues a series the catalog
-  already describes is taken. `tf_ch1` to `tf_ch8` are known to be `soilTemp1` to
-  `soilTemp8`, so `tf_ch9` is `soilTemp9`, and no release is needed for that. A field
+  already describes is taken, so a channel the hardware gains needs no release. A field
   that is merely recognisable by its name is reported with what it looks like, and left
   out until somebody decides.
 - **The socket is not ours.** It comes from `weewx.listener`, so threads, shutdown,
@@ -72,8 +72,8 @@ guide, under *Porting to new hardware*.
 reading sooner, at the risk of a unit nobody checked. Whatever the setting, the log says
 what turned up:
 
-    INFO user.ecowitt.mapping: New field 'tf_ch9' -> 'soilTemp9' (group_temperature),
-        continues tf_ch, e.g. soilTemp1
+    INFO user.ecowitt.mapping: New field 'leafwetness_ch5' -> 'leafWet5'
+        (group_percent), continues leafwetness_ch, e.g. leafWet1
 
 A field only reaches the database if the archive table has a column for it. Fields
 outside the standard schema need `weectl database add-column` first.
@@ -132,16 +132,24 @@ the same channel with a different probe in it. They map to the same field on pur
 
 ## Where the fields come from
 
-The catalog is generated, not typed. `tools/import_catalog.py` reads the field maps out
-of the `ecowittcustom` driver by [Werner
+The catalog is generated, not typed. `tools/import_catalog.py` reads the raw field
+names out of the `ecowittcustom` driver by [Werner
 Krenn](https://github.com/WernerKr/Ecowitt-or-DAVIS-stations-and-Season-skin) and writes
-`bin/user/ecowitt/catalog.py`. Running it again after an update upstream produces a diff
-that can be reviewed, rather than a merge nobody can check.
+`bin/user/ecowitt/catalog.py`. Run it again when Ecowitt ships something new and the
+addition is a reviewable diff rather than a merge nobody can check.
 
-Where this driver knowingly differs from upstream, the reason is written down in the
-tool. There are two kinds of difference so far: a reading that upstream maps to more
-than one field goes to the one in the WeeWX schema, so that skins find it; and the time
-of the last lightning strike goes to `lightning_time` rather than into a counter.
+What a field *is* comes from the hardware and is not negotiable. Where it *goes* is
+decided in that tool, in three lists that are meant to be read:
+
+- `CHANNELS`, how far each sensor family reaches, from Ecowitt's compatibility table.
+- `REMAP`, families placed differently from upstream, with the reason next to them.
+  The WN34 and the WH52 are there.
+- `OVERRIDES`, single fields, likewise with the reason. Currently one, the lightning
+  timestamp that upstream keeps in a counter.
+
+The generator reports what it could not settle: fields written by more than one
+reading, readings upstream sends to more than one field, and raw names with no target
+at all. None of that is allowed to pass quietly.
 
 ## Tests
 
