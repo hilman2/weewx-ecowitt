@@ -630,6 +630,7 @@ GROUPS = {
     'lightning_Batt': 'group_count',
     'lightning_distance': 'group_distance',
     'lightning_num': 'group_count',
+    'lightning_time': 'group_time',
     'maxdailygust': 'group_speed2',
     'mrain_piezo': 'group_rain',
     'newVersion': 'group_count',

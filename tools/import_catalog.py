@@ -80,7 +80,7 @@ OVERRIDES = {
     # Upstream puts the time of the last strike into lightning_disturber_count, which
     # counts something else entirely. A Unix timestamp in a counter shows up in reports
     # as a ten digit number of strikes.
-    'lightning_time': 'lightning_time',
+    'lightning_time': ('lightning_time', 'group_time'),
 }
 
 
@@ -137,7 +137,7 @@ def main():
     ambiguous = []
     for raw, intermediate in sorted(label_map.items()):
         if raw in OVERRIDES:
-            fields[raw] = OVERRIDES[raw]
+            fields[raw], groups[OVERRIDES[raw][0]] = OVERRIDES[raw]
             continue
         targets = by_intermediate.get(intermediate)
         if not targets:
