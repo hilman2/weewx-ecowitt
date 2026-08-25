@@ -29,6 +29,36 @@ Name them, and each gets its own mapping:
 One port, one listener. The consoles are told apart by the `PASSKEY` they send first
 in every upload, which is derived from their hardware address and does not change.
 
+## If you have not configured them yet
+
+The driver notices on its own. It keeps track of which console wrote which field, and
+the moment a second one writes a field the first already owns, it says so and drops
+the newcomer's value rather than writing it over the other:
+
+```
+WARNING user.ecowitt.driver: Two consoles are sending here, and both write
+'extraTemp9'. The readings from 'BBBBBBBB' are being dropped, because mixing two
+sensors into one column cannot be undone afterwards. Give each console its own field
+map under [[stations]], one entry per PASSKEY.
+```
+
+Only the field that clashes is dropped. Everything else from that console arrives as
+usual, so a second gateway carrying sensors the first one does not is not held up at
+all:
+
+```
+Gateway A : {'extraTemp9': 66.0, 'outTemp': 59.7}
+Gateway B : {'soilMoist1': 30.0}
+```
+
+Gateway B's `tf_ch1` is gone, because A already owns that field. Its soil sensor,
+which A does not have, comes through.
+
+Which console keeps a field is decided by which one sent it first after the driver
+started. That is arbitrary, but it is stable: the series that is already running
+keeps running. Naming both consoles under `[[stations]]` removes the restriction, and
+then each writes wherever you send it.
+
 ## Finding a PASSKEY
 
 It is the first value in the upload:

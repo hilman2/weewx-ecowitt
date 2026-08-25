@@ -123,3 +123,79 @@ def test_a_station_without_a_passkey_is_refused():
     with pytest.raises(ValueError):
         EcowittDriver(port=0, address='127.0.0.1',
                       stations={'garden': {'field_map_extensions': {}}})
+
+
+# ------------------------------------------------- without a [[stations]] section
+
+
+@pytest.fixture
+def unconfigured():
+    """One mapping, as somebody has it before they know about the second console."""
+    made = EcowittDriver(port=0, address='127.0.0.1', report_file='',
+                         field_map_extensions={'tf_ch1': 'extraTemp9'})
+    yield made
+    made.closePort()
+
+
+def test_a_second_console_does_not_overwrite_the_first(unconfigured, caplog):
+    """This is what happens the day a gateway is added and nothing is configured."""
+    import logging
+
+    packets = unconfigured.genLoopPackets()
+    with caplog.at_level(logging.WARNING):
+        post(unconfigured, 'PASSKEY=%s&tf_ch1=66.0&tempf=59.7' % GARDEN)
+        first = next(packets)
+        post(unconfigured, 'PASSKEY=%s&tf_ch1=41.2' % ROOF)
+        # The second console's reading for the same field is dropped, so its packet
+        # holds nothing and never reaches WeeWX. Send something to prove the driver
+        # is still there.
+        post(unconfigured, 'PASSKEY=%s&tempf=61.0' % GARDEN)
+        second = next(packets)
+
+    assert first['extraTemp9'] == 66.0
+    assert second['outTemp'] == 61.0
+    assert 'extraTemp9' not in second or second['extraTemp9'] == 66.0
+    assert "both write 'extraTemp9'" in caplog.text
+    assert '[[stations]]' in caplog.text
+
+
+def test_two_consoles_with_different_sensors_are_left_alone(unconfigured):
+    """The common case: a second gateway carrying sensors the first does not."""
+    packets = unconfigured.genLoopPackets()
+    post(unconfigured, 'PASSKEY=%s&tempf=59.7' % GARDEN)
+    post(unconfigured, 'PASSKEY=%s&soilmoisture1=30' % ROOF)
+
+    first, second = next(packets), next(packets)
+
+    assert first['outTemp'] == 59.7
+    assert second['soilMoist1'] == 30.0
+
+
+def test_the_collision_is_said_once(unconfigured, caplog):
+    import logging
+
+    packets = unconfigured.genLoopPackets()
+    post(unconfigured, 'PASSKEY=%s&tf_ch1=66.0' % GARDEN)
+    next(packets)
+    with caplog.at_level(logging.WARNING):
+        post(unconfigured, 'PASSKEY=%s&tf_ch1=41.2' % ROOF)
+        post(unconfigured, 'PASSKEY=%s&tempf=61.0' % GARDEN)
+        next(packets)
+        caplog.clear()
+        post(unconfigured, 'PASSKEY=%s&tf_ch1=41.3' % ROOF)
+        post(unconfigured, 'PASSKEY=%s&tempf=62.0' % GARDEN)
+        next(packets)
+
+    assert caplog.text == ''
+
+
+def test_naming_the_consoles_removes_the_restriction(driver):
+    """With [[stations]] both consoles write freely, into their own fields."""
+    post(driver, 'PASSKEY=%s&tf_ch1=66.0' % GARDEN)
+    post(driver, 'PASSKEY=%s&tf_ch1=41.2' % ROOF)
+
+    packets = driver.genLoopPackets()
+    readings = {p['station']: p for p in (next(packets), next(packets))}
+
+    assert readings['garden']['soilTemp1'] == 66.0
+    assert readings['roof']['extraTemp12'] == 41.2

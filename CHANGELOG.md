@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 (2026-08-25)
+
+A second console is now noticed without being configured. The driver tracks which
+console wrote which field, and drops a newcomer's value for a field another console
+already owns instead of writing over it. Only the clashing field is dropped; anything
+that console alone carries still arrives.
+
 ## 0.2.0 (2026-08-25)
 
 Several consoles can now share one driver, told apart by the PASSKEY each sends.

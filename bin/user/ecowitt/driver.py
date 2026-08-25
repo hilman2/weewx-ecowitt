@@ -76,6 +76,12 @@ class EcowittDriver(weewx.drivers.AbstractDevice):
         for mapper in self._mappers():
             self._register_units(mapper.wanted_groups())
         self.unknown_consoles = set()
+        # Which fields each console has written, when they share one mapping. A second
+        # console is common: people add a gateway to reach sensors the first cannot
+        # hear. Both number their channels from one, so the same field can arrive from
+        # both, and the later one would overwrite a reading nothing can recover.
+        self.written_by = {}
+        self.collisions = set()
 
         listener_options = dict(stn_dict)
         listener_options.pop('driver', None)
@@ -146,6 +152,8 @@ class EcowittDriver(weewx.drivers.AbstractDevice):
             if guesses:
                 self._register_units(mapper.wanted_groups())
             self._maybe_report(request.text, guesses)
+            if self.mapper is not None:
+                packet = self._one_console_per_field(packet, request.text)
             if len(packet) <= 1:
                 # Nothing but the timestamp. Usually a probe or a health check.
                 continue
@@ -153,6 +161,42 @@ class EcowittDriver(weewx.drivers.AbstractDevice):
             if name:
                 packet['station'] = name
             yield packet
+
+    def _one_console_per_field(self, packet, text):
+        """Keep a second console from overwriting the first, field by field.
+
+        Only for stations that have not named their consoles. Two gateways is a
+        normal arrangement and mostly harmless, because they usually carry different
+        sensors. It stops being harmless when they carry the same channel: whichever
+        uploaded last would win, and the two series could never be separated again.
+
+        So the console that got there first keeps the field, and the other one's
+        reading is dropped rather than written over it.
+        """
+        console = protocol.station_id(text)
+        dropped = []
+        for field in list(packet):
+            if field == 'dateTime':
+                continue
+            owner = self.written_by.setdefault(field, console)
+            if owner != console:
+                del packet[field]
+                dropped.append(field)
+        if dropped:
+            self._say_collision(console, dropped)
+        return packet
+
+    def _say_collision(self, console, dropped):
+        fresh = [field for field in dropped if field not in self.collisions]
+        if not fresh:
+            return
+        self.collisions.update(fresh)
+        log.warning(
+            "Two consoles are sending here, and both write %s. The readings from '%s' "
+            "are being dropped, because mixing two sensors into one column cannot be "
+            "undone afterwards. Give each console its own field map under "
+            "[[stations]], one entry per PASSKEY. See the Several consoles page.",
+            ', '.join("'%s'" % f for f in sorted(fresh)), console)
 
     def _maybe_report(self, payload, guesses):
         """Write out one upload, the first time something cannot be placed.
