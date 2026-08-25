@@ -1,0 +1,91 @@
+# Unknown fields
+
+A field the catalog does not cover is examined rather than dropped. Two things can be
+said about one without guessing, and they are kept apart.
+
+## Derived
+
+The field continues a series the catalog describes. If `zz_ch1` and `zz_ch2` are
+known, `zz_ch3` follows from them: the hardware numbers its own channels, and the
+catalog supplies both ends of the series.
+
+```
+INFO user.ecowitt.mapping: New field 'leafwetness_ch5' -> 'leafWet5' (group_percent),
+continues leafwetness_ch, e.g. leafWet1
+```
+
+Taken automatically, unless the family's placement is a convention rather than a
+reading. Those wait for you. See [Field map](Field-map).
+
+## Guessed
+
+The name says what the reading is. Ecowitt is consistent about this:
+
+| Pattern | Reading |
+|---|---|
+| `rssi` | signal strength, dB |
+| `_sig` | signal quality, a count |
+| `batt` | battery |
+| `_time` | a timestamp |
+| `barom...in` | pressure, inHg |
+| `rain...in`, `rain...piezo` | rain, inches |
+| `mph` | speed, mph |
+| `winddir...` | direction, degrees |
+| `temp...`, `tf_...`, `soiltemp`, `thermo` | temperature, °F |
+| `humidity`, `moisture`, `_hum` | percent |
+| `pm1`, `pm4`, `pm10`, `pm25` | concentration, µg/m³ |
+| `co2`, `co` | ppm |
+| `solarradiation`, `radiation` | W/m² |
+| `uv` | UV index |
+| `vpd` | pressure, kPa |
+| `depth_ch`, `air_ch`, `thi_ch` | distance, mm |
+
+Reported, not taken:
+
+```
+INFO user.ecowitt.mapping: New field 'yearlyrainin' looks like group_rain
+(name matches rain.*in$|rain.*piezo$), but it was only guessed. Left out.
+Add it to field_map_extensions to keep it.
+```
+
+A guessed field would go to `ecowitt_` plus its raw name, which collides with nothing.
+
+## Past the published channel count
+
+Ecowitt publishes how many channels each sensor supports. A channel beyond that is
+real but not routine, so it is reported rather than derived:
+
+```
+soilmoisture17   soilMoist17   channel 17, past the 16 a WH51 is said to support
+```
+
+Either the published figures have moved on, or something else is going on. Both are
+worth a look before the reading lands in a column.
+
+## Nothing can be said
+
+```
+INFO user.ecowitt.mapping: No idea what 'wizzlefrob' is. Left out.
+```
+
+Please report it. See [Reporting a new sensor](New-sensors).
+
+## The setting
+
+```ini
+[Ecowitt]
+    infer_unknown = series
+```
+
+| Value | Effect |
+|---|---|
+| `off` | Nothing is taken. Everything unknown is logged and dropped. |
+| `series` | Derived fields are taken, unless their placement is a convention. Guesses are logged. **Default.** |
+| `all` | Guesses are taken too, under `ecowitt_` plus the raw name. |
+
+`all` gets you the reading sooner, at the risk of a unit nobody checked. It is the
+right setting while working out what a station sends, which is why
+`python -m user.ecowitt` uses it.
+
+Whatever the setting, a field is reported once per run. Restart the driver to see the
+messages again.

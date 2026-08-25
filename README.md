@@ -90,129 +90,21 @@ Whatever the setting, the log says what turned up:
 A field only reaches the database if the archive table has a column for it. Fields
 outside the standard schema need `weectl database add-column` first.
 
-## Fields that wait for you
+## Documentation
 
-Some readings have no natural home, and putting them in the wrong one cannot be
-undone: two sensors in one column can never be told apart again. Those fields are not
-written until you say where they go.
-
-On a station with two WN34 probes, a WH52 and a lightning sensor, that is six fields
-out of thirty-five. The other twenty-nine arrive without a word, because for them the
-hardware settles it. An outdoor temperature is an outdoor temperature.
-
-What waits, and why:
-
-- **Multi-channel sensors.** A WN34 reports on `tf_ch1` whether it is a spike in a
-  bed, a silicone lead in a pool or a probe on a north wall. Only you know which.
-- **Fields other drivers place elsewhere.** `ecowittcustom` put the WN34 on
-  `soilTemp1`. If your history is there, continuing it is right; if you are starting
-  fresh, `extraTemp9` is. Both are defensible, so neither is assumed.
-
-The log says it once per field, with both lines ready:
-
-    WARNING user.ecowitt.mapping: 'tf_ch1' is not being written, because drivers
-    disagree about where it goes. The wrong choice mixes two sensors into one column,
-    and afterwards they cannot be separated. Add one of these under
-    [[field_map_extensions]]: 'tf_ch1 = extraTemp9' for this driver's placement, or
-    'tf_ch1 = soilTemp1' if your history came from ecowittcustom.
-
-And `python -m user.ecowitt` prints the whole block to paste:
-
-    6 fields are not being written, because where they go is your call and
-    not the hardware's. Paste this into your driver section and uncomment the
-    line you want:
-
-        [[field_map_extensions]]
-            # tf_ch1
-            #tf_ch1 = extraTemp9        # this driver
-            #tf_ch1 = soilTemp1         # ecowittcustom
-
-    Anything else is allowed too. A WN34 on a pool lead is not a soil
-    temperature, so somewhere in extraTemp is often what you want.
-
-### Look before you switch
-
-Whatever you choose, check what is already in those columns. One upload is enough:
-
-    python -m user.ecowitt --port 8001 --config /etc/weewx/weewx.conf
-
-    12 of these fields already hold readings:
-
-      soilTemp1                     104832 values, last 2026-08-25
-      outTemp                       104832 values, last 2026-08-25
-
-    If those came from the same sensor, there is nothing to do. If they came
-    from a different one, this driver is about to write a second series into
-    the same column, and afterwards the two cannot be told apart.
-
-## Multi-channel sensors
-
-Ecowitt sells the same sensor for several jobs. A WN34 comes as a soil probe, as a
-silicone lead for a pool, with a short or a long cable, for indoor or outdoor use. All
-of them report on `tf_chN`, and nothing in the upload says which is which. The same goes
-for the WH31 on `tempN` and the WN35 on `leafwetness_chN`.
-
-Ecowitt says as much itself: its compatibility table lists the three as one row,
-"WN34 S/L/D", with one channel count between them. Nothing in an upload distinguishes
-them, and no driver can.
-
-So the catalog has to put them somewhere neutral. `tf_chN` goes to `extraTemp(N+8)`,
-which is also where the Ecowitt gateway driver puts it, so a history from there lines
-up. That is a convention, not a reading, and the driver says so the first time a
-channel turns up:
-
-    INFO user.ecowitt.mapping: New field 'tf_ch3' -> 'extraTemp11'
-        (group_temperature). Placement is a convention, not a reading: WN34
-        multi-channel temperature. Sold with a spike, with a PVC lead, ...
-
-Only you know where the probe is, so say it:
-
-```ini
-[[field_map_extensions]]
-    tf_ch1 = soilTemp5      # spike in the bed
-    tf_ch2 = extraTemp10    # silicone lead in the pool
-    tf_ch3 = extraTemp11    # north wall
-```
-
-The channels the catalog covers and the ones this driver derives behave the same way
-here. Whatever you write wins.
-
-### Which sensors have how many channels
-
-The catalog carries the figures from Ecowitt's compatibility table, and they do more
-than document: a channel past the end of a family is reported rather than derived,
-because either the table is out of date or something else is going on.
-
-They are checked rather than trusted. `tools/check_against_ecowitt.py` reads the
-sensor families out of Ecowitt's own API documentation and compares them:
-
-    Ecowitt family           model    documented ours
-    leaf_ch                  WN35     8          8
-    soil_ch                  WH51     16         16
-    soil_moisture_ec_ch      WH52     16         16
-    temp_and_humidity_ch     WH31     8          8
-    temp_ch                  WN34     8          8
-
-That last line is also the plainest answer to where a WN34 belongs. Ecowitt calls its
-family `temp_ch`, not soil anything.
-
-| Sensor | Channels | Placement |
-|---|---|---|
-| WH31 and relatives | 8 | yours |
-| WN34 S/L/D | 8 | yours |
-| WN35 | 8 | yours |
-| WH51 and WH52 | 16, shared between them | soil |
-| WH41, WH43 | 4 | yours |
-| WH55 | 4 | leaks |
-| WH54 / LDS01 | 4 | yours |
-| WH45, WH46, WH57, WN38 | 1 | fixed |
-
-The WH51 and the WH52 share one pool of 16, so `soilmoisture3` and `soil_ec_hum3` are
-the same channel with a different probe in it. They map to the same field on purpose.
-
-The cloud API documents sixteen channels for each of them separately, which would make
-that wrong, so the driver does not simply assume it: if both ever arrive for the same
-channel, it says so once and tells you to give one of them a field of its own.
+| | |
+|---|---|
+| [Installation](docs/Installation.md) | install, point the hardware at it, start |
+| [Configuration](docs/Configuration.md) | every option, with worked examples |
+| [Field map](docs/Field-map.md) | how a reading gets to a column |
+| [Sensors](docs/Sensors.md) | every field this driver knows, by sensor |
+| [Unknown fields](docs/Unknown-fields.md) | what happens to a field the catalog misses |
+| [Database columns](docs/Database-columns.md) | which columns a station needs |
+| [Diagnostics](docs/Diagnostics.md) | one command that answers most questions |
+| [Reporting a new sensor](docs/New-sensors.md) | exactly what to send |
+| [Troubleshooting](docs/Troubleshooting.md) | symptoms and what they mean |
+| [Keeping strangers out](docs/Security.md) | path, token, addresses, TLS |
+| [Development](docs/Development.md) | layout, tests, rebuilding the catalog |
 
 ## Where the fields come from
 
