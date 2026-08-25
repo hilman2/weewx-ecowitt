@@ -44,7 +44,7 @@ def test_an_upload_becomes_a_loop_packet(driver, payload):
     packet = next(driver.genLoopPackets())
     assert packet['usUnits'] == weewx.US
     assert packet['outTemp'] == 59.7
-    assert packet['soilTemp1'] == 66.2
+    assert packet['extraTemp9'] == 66.2
     assert packet['lightning_distance'] == 1.0
     assert packet['dateTime'] > 0
 
@@ -53,11 +53,11 @@ def test_new_fields_reach_the_unit_system(driver):
     """A derived field is no use in a report if WeeWX does not know what it is."""
     import weewx.units
 
-    upload(driver, 'tf_ch9=66.2&tempf=59.7')
+    upload(driver, 'soilmoisture17=30&tempf=59.7')
     packet = next(driver.genLoopPackets())
 
-    assert packet['soilTemp9'] == 66.2
-    assert weewx.units.obs_group_dict['soilTemp9'] == 'group_temperature'
+    assert packet['soilMoist17'] == 30.0
+    assert weewx.units.obs_group_dict['soilMoist17'] == 'group_percent'
 
 
 def test_an_empty_upload_yields_no_packet(driver):

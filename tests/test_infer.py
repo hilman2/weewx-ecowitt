@@ -81,13 +81,13 @@ def test_an_inconsistent_family_is_not_a_series():
 
 
 def test_the_real_catalog_continues_its_own_series():
-    """The catalog maps tf_ch1 to tf_ch8. The hardware supports sixteen."""
+    """The catalog stops at soilmoisture16. A seventeenth channel needs no release."""
     inferrer = infer.Inferrer(catalog.FIELDS, catalog.GROUPS)
-    guess = inferrer.guess('tf_ch9')
+    guess = inferrer.guess('soilmoisture17')
 
-    assert guess.field == 'soilTemp9'
+    assert guess.field == 'soilMoist17'
     assert guess.certain is True
-    assert guess.group == 'group_temperature'
+    assert guess.group == 'group_percent'
 
 
 def test_report_reads_like_something_a_person_can_act_on(inferrer):

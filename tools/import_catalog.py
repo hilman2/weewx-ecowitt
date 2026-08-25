@@ -67,12 +67,35 @@ PLACEMENT_UNKNOWN = {{
 # This is hardware knowledge, so it cannot be read out of the upstream source. It is
 # kept here, next to the tool that writes the catalog.
 PLACEMENT_UNKNOWN = {
-    'tf_ch': "WN34 multi-channel temperature. Sold as a soil probe, a pool lead, and "
-             "for indoor or outdoor use. All of them report as tf_chN. They are mapped "
-             "to soilTemp because extraTemp is already taken by the WH31.",
+    'tf_ch': "WN34 multi-channel temperature. Sold with a spike, with a PVC lead, and "
+             "with a silicone lead for a pool. All of them report as tf_chN, so the "
+             "channel is theirs and the placement is yours. They go to extraTemp9 and "
+             "up, which is where the Ecowitt gateway driver puts them.",
     'temp': "WH31 multi-channel temperature and humidity. Placement is the user's.",
     'leafwetness_ch': "WN35 leaf wetness. Placement is the user's.",
 }
+
+# Whole families we place differently from upstream. Each entry is a pattern, a
+# function from the channel number to the WeeWX field, and the unit group.
+REMAP = [
+    # The WN34 is not a soil sensor. It is a multi-channel thermometer, sold with a
+    # spike, with a PVC lead, and with a silicone lead for a pool. Upstream sends it to
+    # soilTemp, which claims a placement the hardware never gave, and which takes the
+    # soil fields away from the sensors that really are in the ground.
+    #
+    # extraTemp9 and up is where the Ecowitt gateway driver puts it, i.e. the driver
+    # most people are coming from, so this also means their history lines up.
+    (r'^tf_ch(\d+)$', lambda n: 'extraTemp%d' % (n + 8), 'group_temperature'),
+    # Its battery goes with it, named like the signal fields already in the catalog.
+    (r'^tf_batt(\d+)$', lambda n: 'wn34_ch%d_batt' % n, 'group_volt'),
+    # With the WN34 out of the way, soilTemp belongs to the sensor that really is in
+    # the ground. A WH52 measures moisture, temperature and conductivity in one probe,
+    # and there is no doubt about where it sits. Upstream leaves its temperature on
+    # soilmTemp, which no skin looks for.
+    (r'^soil_ec_temp(\d+)$', lambda n: 'soilTemp%d' % n, 'group_temperature'),
+]
+
+REMAP = [(re.compile(pattern), name, group) for pattern, name, group in REMAP]
 
 # Where we knowingly differ from upstream, and why. Each of these is a decision, so it
 # is written down rather than left in a commit message.
@@ -82,6 +105,17 @@ OVERRIDES = {
     # as a ten digit number of strikes.
     'lightning_time': ('lightning_time', 'group_time'),
 }
+
+
+def _remap(raw, groups):
+    """Return the field a remapped family belongs on, or None."""
+    for pattern, name_of, group in REMAP:
+        match = pattern.match(raw)
+        if match:
+            field = name_of(int(match.group(1)))
+            groups[field] = group
+            return field
+    return None
 
 
 def find_class(node, name):
@@ -139,6 +173,10 @@ def main():
         if raw in OVERRIDES:
             fields[raw], groups[OVERRIDES[raw][0]] = OVERRIDES[raw]
             continue
+        remapped = _remap(raw, groups)
+        if remapped:
+            fields[raw] = remapped
+            continue
         targets = by_intermediate.get(intermediate)
         if not targets:
             unresolved.append(raw)
@@ -182,6 +220,17 @@ def main():
         print("%d readings had more than one target upstream:" % len(ambiguous))
         for raw, chosen, rest in ambiguous:
             print("  %-22s -> %-24s (not %s)" % (raw, chosen, ', '.join(rest)))
+    collisions = {}
+    for raw, field in fields.items():
+        collisions.setdefault(field, []).append(raw)
+    collisions = {f: sorted(r) for f, r in collisions.items() if len(r) > 1}
+    if collisions:
+        print("%d fields are written by more than one reading. Whichever arrives last "
+              "wins:" % len(collisions))
+        for field, raws in sorted(collisions.items())[:6]:
+            print("  %-22s <- %s" % (field, ', '.join(raws)))
+        if len(collisions) > 6:
+            print("  ... and %d more" % (len(collisions) - 6))
     if unresolved:
         print("%d raw fields have no WeeWX target upstream, left out:" % len(unresolved),
               file=sys.stderr)

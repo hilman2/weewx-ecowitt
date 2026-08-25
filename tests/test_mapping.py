@@ -26,10 +26,10 @@ def test_the_sensors_that_the_interceptor_drops(payload):
     """These are the fields an HP2561AE sends that weewx-interceptor throws away."""
     packet, _ = Mapper().to_packet(payload('hp2561ae_pro'))
 
-    assert packet['soilTemp1'] == 66.2          # WN34, first probe
-    assert packet['soilTemp2'] == 61.5          # WN34, second probe
-    assert packet['soilMoist1'] == 30.0         # WH52
-    assert packet['soilmTemp1'] == 65.7         # WH52
+    assert packet['extraTemp9'] == 66.2         # WN34, first channel
+    assert packet['extraTemp10'] == 61.5        # WN34, second channel
+    assert packet['soilMoist1'] == 30.0         # WH52, moisture
+    assert packet['soilTemp1'] == 65.7          # WH52, temperature
     assert packet['lightning_distance'] == 1.0  # WH57
     assert packet['lightning_num'] == 0.0
     assert packet['vpd'] == 0.047
@@ -81,9 +81,9 @@ def test_infer_off_reports_nothing_and_takes_nothing(payload):
 
 def test_a_derived_field_is_taken_by_default():
     """A series continued from the catalog is not a guess, so it goes in."""
-    packet, guesses = Mapper().to_packet('tf_ch9=66.2')
+    packet, guesses = Mapper().to_packet('soilmoisture17=30')
 
-    assert packet['soilTemp9'] == 66.2
+    assert packet['soilMoist17'] == 30.0
     assert guesses[0].certain is True
 
 
@@ -108,11 +108,11 @@ def test_a_field_is_only_reported_once(payload):
 
 def test_unit_groups_grow_with_what_arrives():
     mapper = Mapper()
-    assert 'soilTemp9' not in mapper.wanted_groups()
+    assert 'soilMoist17' not in mapper.wanted_groups()
 
-    mapper.to_packet('tf_ch9=66.2')
+    mapper.to_packet('soilmoisture17=30')
 
-    assert mapper.wanted_groups()['soilTemp9'] == 'group_temperature'
+    assert mapper.wanted_groups()['soilMoist17'] == 'group_percent'
 
 
 def test_bad_mode_is_refused():
@@ -131,7 +131,7 @@ def test_placement_is_flagged_for_multi_channel_sensors():
     """A WN34 is the same part whether it sits in a bed or a pool."""
     from ecowitt.mapping import placement_note
 
-    assert placement_note('tf_ch9')
+    assert placement_note('tf_ch1')
     assert placement_note('temp1f')
     assert placement_note('leafwetness_ch3')
     # The single outdoor sensor is not a channel, and not in question.
@@ -140,19 +140,19 @@ def test_placement_is_flagged_for_multi_channel_sensors():
 
 
 def test_a_channel_can_be_put_where_it_actually_is():
-    """The pool lead reports as tf_ch2. It is not a soil temperature."""
-    mapper = Mapper(extensions={'tf_ch2': 'extraTemp5'})
+    """Channel 1 is a spike in the bed, channel 2 a lead in the pool."""
+    mapper = Mapper(extensions={'tf_ch1': 'soilTemp3', 'tf_ch2': 'extraTemp5'})
     packet, _ = mapper.to_packet('tf_ch1=66.2&tf_ch2=78.4')
 
-    assert packet['soilTemp1'] == 66.2
+    assert packet['soilTemp3'] == 66.2
     assert packet['extraTemp5'] == 78.4
-    assert 'soilTemp2' not in packet
+    assert 'extraTemp9' not in packet
 
 
 def test_a_derived_channel_can_be_redirected_too():
     """What holds for the catalog holds for a channel the driver worked out."""
-    mapper = Mapper(extensions={'tf_ch9': 'extraTemp6'})
-    packet, guesses = mapper.to_packet('tf_ch9=78.4')
+    mapper = Mapper(extensions={'soilmoisture17': 'soilMoist2'})
+    packet, guesses = mapper.to_packet('soilmoisture17=30')
 
-    assert packet['extraTemp6'] == 78.4
+    assert packet['soilMoist2'] == 30.0
     assert guesses == []
