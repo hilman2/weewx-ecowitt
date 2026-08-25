@@ -10,13 +10,15 @@ Run this before wiring anything up, or when a sensor is missing from the reports
     python -m user.ecowitt --port 8000
 
 It waits for one upload, then prints what arrived, what the driver could not place,
-and the commands that would give the readings somewhere to live. Nothing is changed,
-and WeeWX does not have to be stopped as long as this uses a different port.
+the commands that would give the readings somewhere to live, and which of those fields
+already hold somebody else's history. Nothing is changed, and WeeWX does not have to be
+stopped as long as this uses a different port.
 """
 
 import argparse
 import logging
 import sys
+import time
 
 from . import VERSION, columns, infer
 from .mapping import Mapper, placement_note
@@ -39,16 +41,23 @@ def main(argv=None):
     parser.add_argument('--timeout', type=int, default=300,
                         help="Seconds to wait before giving up. Default 300.")
     parser.add_argument('--config', default='/etc/weewx/weewx.conf',
-                        help="Path to weewx.conf, for the commands printed at the end.")
-    parser.add_argument('--infer-unknown', default='all', choices=['off', 'series', 'all'],
+                        help="Path to weewx.conf, for the database check and for the "
+                             "commands printed at the end.")
+    parser.add_argument('--infer-unknown', default='all',
+                        choices=['off', 'series', 'all'],
                         help="Default 'all' here, so that everything gets a proposal.")
+    parser.add_argument('--compat', help="Keep the field names of another driver, e.g. "
+                                         "ecowittcustom. See compat.py.")
+    parser.add_argument('--no-database', action='store_true',
+                        help="Skip looking at the database. Faster, and one section "
+                             "less when setting up from scratch.")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.WARNING, format='%(message)s')
     print("weewx-ecowitt %s. Listening on %s:%s. Point the console here."
           % (VERSION, args.address or '*', args.port))
 
-    mapper = Mapper(infer_unknown=args.infer_unknown)
+    mapper = Mapper(infer_unknown=args.infer_unknown, compat_with=args.compat)
     packet = {}
     guesses = []
     seen = 0
@@ -70,6 +79,8 @@ def main(argv=None):
         listener.close()
 
     _report(packet, guesses, mapper, args.config)
+    if not args.no_database:
+        _check_history(packet, args.config)
     return 0
 
 
@@ -85,8 +96,9 @@ def _report(packet, guesses, mapper, config):
             print("  " + line)
         flagged = {g.raw for g in guesses if placement_note(g.raw)}
         if flagged:
-            print("\n  Placement of these is a convention, not a reading. Say where they"
-                  "\n  really are with field_map_extensions: %s" % ' '.join(sorted(flagged)))
+            print("\n  Placement of these is a convention, not a reading. Say where "
+                  "they\n  really are with field_map_extensions: %s"
+                  % ' '.join(sorted(flagged)))
 
     try:
         wanted = columns.missing(packet, mapper.wanted_groups())
@@ -104,6 +116,31 @@ def _report(packet, guesses, mapper, config):
     for command in columns.commands(wanted, config):
         print("  " + command)
     print("\nBack up the database first. Adding a column rewrites the table.")
+
+
+def _check_history(packet, config):
+    """Say which of these fields already hold readings, and why that matters."""
+    try:
+        used = columns.occupied(config)
+    except Exception as e:
+        print("\nCannot read the database (%s). Skipping the history check." % e,
+              file=sys.stderr)
+        return
+
+    clashes = {field: used[field] for field in packet if field in used}
+    if not clashes:
+        print("\nNo field this driver writes to has a history yet.")
+        return
+
+    print("\n%d of these fields already hold readings:\n" % len(clashes))
+    for field, (count, last) in sorted(clashes.items()):
+        when = time.strftime('%Y-%m-%d', time.localtime(last)) if last else '?'
+        print("  %-26s %9d values, last %s" % (field, count, when))
+    print("\nIf those came from the same sensor, there is nothing to do. If they came"
+          "\nfrom a different one, this driver is about to write a second series into"
+          "\nthe same column, and afterwards the two cannot be told apart. Coming from"
+          "\nanother driver, name it: compat = ecowittcustom. Otherwise map the field"
+          "\nyourself under [[field_map_extensions]].")
 
 
 if __name__ == '__main__':

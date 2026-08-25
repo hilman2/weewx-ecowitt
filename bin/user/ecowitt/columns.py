@@ -56,3 +56,30 @@ def commands(wanted, config='/etc/weewx/weewx.conf'):
     """Render the columns as the commands that create them."""
     return ["weectl database add-column %s --type %s --config=%s -y" % (field, sql, config)
             for field, sql in wanted]
+
+
+def occupied(config_path, binding='wx_binding'):
+    """Return {field: (count, last timestamp)} for archive columns that hold data.
+
+    This is what stands between a driver change and a ruined series. If a field this
+    driver writes to already has history, that history came from somewhere else, and
+    the two are about to be mixed in one column.
+
+    One pass over the table, so it takes a moment on a large database.
+    """
+    import weecfg
+    import weewx.manager
+
+    _, config_dict = weecfg.read_config(config_path)
+    with weewx.manager.open_manager_with_config(config_dict, binding) as manager:
+        fields = [f for f in manager.sqlkeys if f not in ('dateTime', 'usUnits', 'interval')]
+        counts = ', '.join('COUNT(%s), MAX(CASE WHEN %s IS NOT NULL THEN dateTime END)'
+                           % (f, f) for f in fields)
+        row = manager.getSql("SELECT %s FROM %s" % (counts, manager.table_name))
+
+    used = {}
+    for index, field in enumerate(fields):
+        count, last = row[index * 2], row[index * 2 + 1]
+        if count:
+            used[field] = (count, last)
+    return used

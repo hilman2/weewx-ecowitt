@@ -55,3 +55,11 @@ def test_the_standard_schema_is_what_we_compare_against():
     assert 'outTemp' in fields
     assert 'soilTemp4' in fields
     assert 'soilTemp9' not in fields
+
+
+def test_occupied_needs_a_database():
+    """Without one, the check says so rather than pretending everything is free."""
+    pytest.importorskip('weewx', reason="WeeWX is not installed")
+
+    with pytest.raises(Exception):
+        columns.occupied('/nonexistent/weewx.conf')

@@ -14,7 +14,7 @@ registering.
 import logging
 import re
 
-from . import catalog, infer, protocol
+from . import catalog, compat, infer, protocol
 
 log = logging.getLogger(__name__)
 
@@ -40,18 +40,23 @@ class Mapper:
             the user's own mapping, from the configuration file.
         infer_unknown (str): 'off', 'series' or 'all'. See above. Default 'series',
             i.e. accept what can be derived and merely report what was guessed.
+        compat_with (str): Name of the driver a history was started under, so that
+            its field names are kept. See compat.py.
         fields, groups, channels (dict): The catalog to work from. Defaults to the
             one that ships with the driver. Passing them is for tests, so that they
             do not have to change every time the catalog does.
     """
 
-    def __init__(self, extensions=None, infer_unknown=SERIES,
+    def __init__(self, extensions=None, infer_unknown=SERIES, compat_with=None,
                  fields=None, groups=None, channels=None):
         if infer_unknown not in MODES:
             raise ValueError("infer_unknown must be one of %s, not '%s'"
                              % (', '.join(MODES), infer_unknown))
         self.mode = infer_unknown
         self.fields = dict(catalog.FIELDS if fields is None else fields)
+        # Where somebody came from first, then what they asked for. Their own mapping
+        # has to win over a profile, or they could not correct one.
+        self.fields.update(compat.profile(compat_with))
         self.fields.update(extensions or {})
         self.groups = dict(catalog.GROUPS if groups is None else groups)
         self.inferrer = infer.Inferrer(

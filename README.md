@@ -90,6 +90,41 @@ Whatever the setting, the log says what turned up:
 A field only reaches the database if the archive table has a column for it. Fields
 outside the standard schema need `weectl database add-column` first.
 
+## Coming from another driver
+
+Changing driver should not change what a column means, and this one does not place
+everything the way its predecessors did. Somebody arriving from `ecowittcustom` has
+years of WN34 readings in `soilTemp1`, because that is where that driver put them. Here
+a WN34 goes to `extraTemp9` and a WH52 goes to `soilTemp1`, which is right for a fresh
+install and quietly wrong for theirs: the old series stops, and a different sensor
+starts writing into it.
+
+So say where you came from:
+
+```ini
+[Ecowitt]
+    compat = ecowittcustom      # or gw1000, or none
+```
+
+The profile is applied before your own `field_map_extensions`, so anything you set
+still wins. To move a series onto the new field later, rename the column with
+`weectl database rename-column` and drop the setting.
+
+If you are not sure what is in there, look before you switch:
+
+    python -m user.ecowitt --port 8001 --config /etc/weewx/weewx.conf
+
+Point the console at that port for one upload, and it will tell you:
+
+    12 of these fields already hold readings:
+
+      soilTemp1                     104832 values, last 2026-08-25
+      outTemp                       104832 values, last 2026-08-25
+
+    If those came from the same sensor, there is nothing to do. If they came
+    from a different one, this driver is about to write a second series into
+    the same column, and afterwards the two cannot be told apart.
+
 ## Multi-channel sensors
 
 Ecowitt sells the same sensor for several jobs. A WN34 comes as a soil probe, as a
