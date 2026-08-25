@@ -33,8 +33,9 @@ def test_the_bundled_listener_matches_weewx():
 
 
 def test_the_bundled_listener_is_importable():
-    """Whatever WeeWX is installed, the copy has to work on its own."""
-    import listener
+    """However old the WeeWX, the bundled copy has to work."""
+    pytest.importorskip('weeutil', reason="WeeWX is not installed")
+    import user.listener as bundled
 
-    assert hasattr(listener, 'HTTPListener')
-    assert hasattr(listener, 'UDPListener')
+    assert hasattr(bundled, 'HTTPListener')
+    assert hasattr(bundled, 'UDPListener')

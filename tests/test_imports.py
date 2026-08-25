@@ -13,9 +13,13 @@ import importlib
 
 import pytest
 
+# The parser, the catalog and the inference are the parts that have to work with
+# nothing but Python, so that the tests can run from a captured payload.
 WITHOUT_WEEWX = ['ecowitt', 'ecowitt.catalog', 'ecowitt.columns',
-                 'ecowitt.infer', 'ecowitt.mapping', 'ecowitt.protocol', 'listener']
-WITH_WEEWX = ['ecowitt.driver', 'ecowitt.__main__']
+                 'ecowitt.infer', 'ecowitt.mapping', 'ecowitt.protocol']
+# The listener is WeeWX's own file, bundled here for older installations. It uses
+# weeutil, as the core copy does, so it needs WeeWX like the driver does.
+WITH_WEEWX = ['ecowitt.driver', 'ecowitt.__main__', 'user.listener']
 
 
 @pytest.mark.parametrize('name', WITHOUT_WEEWX)
