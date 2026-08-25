@@ -78,6 +78,33 @@ what turned up:
 A field only reaches the database if the archive table has a column for it. Fields
 outside the standard schema need `weectl database add-column` first.
 
+## Multi-channel sensors
+
+Ecowitt sells the same sensor for several jobs. A WN34 comes as a soil probe, as a
+silicone lead for a pool, with a short or a long cable, for indoor or outdoor use. All
+of them report on `tf_chN`, and nothing in the upload says which is which. The same goes
+for the WH31 on `tempN` and the WN35 on `leafwetness_chN`.
+
+So the catalog has to put them somewhere. `tf_chN` goes to `soilTempN`, because
+`extraTempN` is already taken by the WH31. That is a convention, not a reading, and the
+driver says so the first time a channel turns up:
+
+    INFO user.ecowitt.mapping: New field 'tf_ch3' -> 'soilTemp3' (group_temperature),
+        continues tf_ch, e.g. soilTemp1. Placement is a convention, not a reading:
+        WN34 multi-channel temperature. Sold as a soil probe, a pool lead, ...
+
+Only you know where the probe is, so say it:
+
+```ini
+[[field_map_extensions]]
+    tf_ch1 = soilTemp1      # probe in the bed
+    tf_ch2 = extraTemp5     # lead in the pool
+    tf_ch3 = extraTemp6     # north wall
+```
+
+The channels the catalog covers and the ones this driver derives behave the same way
+here. Whatever you write wins.
+
 ## Where the fields come from
 
 The catalog is generated, not typed. `tools/import_catalog.py` reads the field maps out

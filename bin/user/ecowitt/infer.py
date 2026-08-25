@@ -12,10 +12,17 @@ does not know them logs "unrecognized parameter" and drops them.
 
 Two things can be said about an unknown field without guessing:
 
-1.  It continues a series the catalog already describes. `tf_ch1` through `tf_ch8`
-    are known to be `soilTemp1` through `soilTemp8`, so `tf_ch9` is `soilTemp9`.
-    Nothing here is a guess. The naming is the hardware's own, and the catalog
-    supplies both ends of it.
+1.  It continues a series the catalog already describes. The catalog maps `tf_ch1`
+    through `tf_ch8` to `soilTemp1` through `soilTemp8`, so `tf_ch9` belongs on
+    `soilTemp9`. The continuation is not a guess: the hardware numbers its own
+    channels, and the catalog supplies both ends of the series.
+
+    Where that series points is another matter, and it is the catalog's decision
+    rather than this module's. A WN34 reports on `tf_chN` whether it is a probe in a
+    bed, a silicone lead in a pool, or a sensor on a wall. `soilTemp` is where they
+    are put because `extraTemp` is already taken by the WH31, and the reading is in
+    the right unit and the right channel either way. See `PLACEMENT_UNKNOWN` in the
+    catalog, and `field_map_extensions` for saying where a channel really is.
 
 2.  Its name says what it measures. Ecowitt is consistent about this: a name ending
     in `f` is Fahrenheit, `humidity` and `moisture` are percentages, `mph` is a wind

@@ -12,6 +12,7 @@ registering.
 """
 
 import logging
+import re
 
 from . import catalog, infer, protocol
 
@@ -96,8 +97,8 @@ class Mapper:
             self.ignored.add(name)
             return None
 
-        log.info("New field '%s' -> '%s' (%s), %s", name, guess.field,
-                 guess.group or 'no group', guess.why)
+        log.info("New field '%s' -> '%s' (%s), %s.%s", name, guess.field,
+                 guess.group or 'no group', guess.why, placement_note(name) or '')
         self.seen[name] = guess
         if guess.group:
             self.groups[guess.field] = guess.group
@@ -106,6 +107,19 @@ class Mapper:
     def wanted_groups(self):
         """Unit groups the packet needs, for the caller to register with WeeWX."""
         return dict(self.groups)
+
+
+def placement_note(raw):
+    """Say so when the field name claims more than the hardware does.
+
+    A WN34 reports on tf_chN whether it is a probe in a bed or a lead in a pool, and
+    the catalog has to call it something. Whoever installed it is the only one who
+    knows, so the moment a new channel turns up is the moment to say that.
+    """
+    for prefix, note in catalog.PLACEMENT_UNKNOWN.items():
+        if re.match(re.escape(prefix) + r'\d', raw):
+            return " Placement is a convention, not a reading: " + note
+    return None
 
 
 def _now():

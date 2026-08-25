@@ -50,8 +50,29 @@ FIELDS = {{
 # WeeWX field -> unit group, for the fields that are not already in the WeeWX schema.
 GROUPS = {{
 {groups}}}
+
+# Raw field prefixes whose target name says more than the hardware does. A reading from
+# one of these is in the right unit and the right channel, but whether it belongs to
+# soil, a pool or a wall is the user's to say, with field_map_extensions.
+PLACEMENT_UNKNOWN = {{
+{placement}}}
 '''
 
+
+# Families where the WeeWX field name claims something the hardware never said. These
+# are multi-channel sensors: the same model reports on the same field whether it is a
+# probe in a flower bed, a silicone lead in a pool, or a sensor on a north wall. The
+# mapping has to put them somewhere, and somewhere is not the same as knowing.
+#
+# This is hardware knowledge, so it cannot be read out of the upstream source. It is
+# kept here, next to the tool that writes the catalog.
+PLACEMENT_UNKNOWN = {
+    'tf_ch': "WN34 multi-channel temperature. Sold as a soil probe, a pool lead, and "
+             "for indoor or outdoor use. All of them report as tf_chN. They are mapped "
+             "to soilTemp because extraTemp is already taken by the WH31.",
+    'temp': "WH31 multi-channel temperature and humidity. Placement is the user's.",
+    'leafwetness_ch': "WN35 leaf wetness. Placement is the user's.",
+}
 
 # Where we knowingly differ from upstream, and why. Each of these is a decision, so it
 # is written down rather than left in a commit message.
@@ -143,13 +164,15 @@ def main():
     used_groups = {f: g for f, g in sorted(groups.items()) if f in set(fields.values())}
 
     def render(mapping):
-        return ''.join("    '%s': '%s',\n" % (k, v) for k, v in sorted(mapping.items()))
+        # repr, not quotes of our own: some of these values contain an apostrophe.
+        return ''.join("    %r: %r,\n" % (k, v) for k, v in sorted(mapping.items()))
 
     with open(args.out, 'w', encoding='utf-8', newline='\n') as fd:
         fd.write(HEADER.format(source=os.path.basename(args.source),
                                count=len(fields),
                                fields=render(fields),
-                               groups=render(used_groups)))
+                               groups=render(used_groups),
+                               placement=render(PLACEMENT_UNKNOWN)))
 
     print("%d fields, %d unit groups -> %s" % (len(fields), len(used_groups), args.out))
     if OVERRIDES:

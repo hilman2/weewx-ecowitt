@@ -125,3 +125,34 @@ def test_an_empty_payload_yields_only_a_timestamp():
 
     assert list(packet) == ['dateTime']
     assert guesses == []
+
+
+def test_placement_is_flagged_for_multi_channel_sensors():
+    """A WN34 is the same part whether it sits in a bed or a pool."""
+    from ecowitt.mapping import placement_note
+
+    assert placement_note('tf_ch9')
+    assert placement_note('temp1f')
+    assert placement_note('leafwetness_ch3')
+    # The single outdoor sensor is not a channel, and not in question.
+    assert placement_note('tempf') is None
+    assert placement_note('humidity') is None
+
+
+def test_a_channel_can_be_put_where_it_actually_is():
+    """The pool lead reports as tf_ch2. It is not a soil temperature."""
+    mapper = Mapper(extensions={'tf_ch2': 'extraTemp5'})
+    packet, _ = mapper.to_packet('tf_ch1=66.2&tf_ch2=78.4')
+
+    assert packet['soilTemp1'] == 66.2
+    assert packet['extraTemp5'] == 78.4
+    assert 'soilTemp2' not in packet
+
+
+def test_a_derived_channel_can_be_redirected_too():
+    """What holds for the catalog holds for a channel the driver worked out."""
+    mapper = Mapper(extensions={'tf_ch9': 'extraTemp6'})
+    packet, guesses = mapper.to_packet('tf_ch9=78.4')
+
+    assert packet['extraTemp6'] == 78.4
+    assert guesses == []

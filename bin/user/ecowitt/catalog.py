@@ -945,3 +945,12 @@ GROUPS = {
     'ws90cap_volt': 'group_volt',
     'yrain_piezo': 'group_rain',
 }
+
+# Raw field prefixes whose target name says more than the hardware does. A reading from
+# one of these is in the right unit and the right channel, but whether it belongs to
+# soil, a pool or a wall is the user's to say, with field_map_extensions.
+PLACEMENT_UNKNOWN = {
+    'leafwetness_ch': "WN35 leaf wetness. Placement is the user's.",
+    'temp': "WH31 multi-channel temperature and humidity. Placement is the user's.",
+    'tf_ch': 'WN34 multi-channel temperature. Sold as a soil probe, a pool lead, and for indoor or outdoor use. All of them report as tf_chN. They are mapped to soilTemp because extraTemp is already taken by the WH31.',
+}
