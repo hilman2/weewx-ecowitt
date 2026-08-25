@@ -7,7 +7,7 @@
 
 from weecfg.extension import ExtensionInstaller
 
-VERSION = '0.1.0'
+VERSION = '0.1.1'
 
 
 def loader():
@@ -36,11 +36,17 @@ class EcowittInstaller(ExtensionInstaller):
                     'field_map_extensions': {}}},
             files=[
                 ('bin/user', ['bin/user/listener.py']),
+                # Every module in the package. A test keeps this list complete,
+                # because a missing one shows up as an ImportError on somebody else's
+                # machine and nowhere earlier.
                 ('bin/user/ecowitt', ['bin/user/ecowitt/__init__.py',
+                                      'bin/user/ecowitt/__main__.py',
                                       'bin/user/ecowitt/catalog.py',
+                                      'bin/user/ecowitt/columns.py',
                                       'bin/user/ecowitt/driver.py',
                                       'bin/user/ecowitt/infer.py',
                                       'bin/user/ecowitt/mapping.py',
-                                      'bin/user/ecowitt/protocol.py']),
+                                      'bin/user/ecowitt/protocol.py',
+                                      'bin/user/ecowitt/report.py']),
             ]
         )

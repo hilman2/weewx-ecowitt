@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.1 (2026-08-25)
+
+Fixes an installation that could not start. `install.py` left out `columns.py`,
+`report.py` and `__main__.py`, so `weectl extension install` copied a package that
+raised `ImportError` on the first start. The release archive contained them; the
+installer did not copy them.
+
+A test now compares the file list in `install.py` against the package, so a module
+cannot be left out again.
+
+Nobody who installed 0.1.0 has a working driver. Install this one over it.
+
 ## 0.1.0 (2026-08-25)
 
 First version.
