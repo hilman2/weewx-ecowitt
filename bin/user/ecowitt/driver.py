@@ -76,6 +76,11 @@ class EcowittDriver(weewx.drivers.AbstractDevice):
 
         self.model = stn_dict.get('model', 'Ecowitt')
         self.infer_unknown = stn_dict.get('infer_unknown', 'series')
+        # How far the console's clock may be out before its own timestamp is dropped.
+        # A console on the internet keeps its clock by NTP, so a stamp a few minutes
+        # old means the upload was delayed, not that the clock is wrong.
+        self.max_behind = int(stn_dict.get('max_behind', protocol.MAX_BEHIND))
+        self.max_ahead = int(stn_dict.get('max_ahead', protocol.MAX_AHEAD))
 
         # One mapping, or one per console. Two consoles both number their channels
         # from one, so without this a WN34 on channel 1 of each would overwrite the
@@ -83,7 +88,8 @@ class EcowittDriver(weewx.drivers.AbstractDevice):
         self.stations = self._read_stations(stn_dict.get('stations'))
         self.mapper = None if self.stations else Mapper(
             extensions=dict(stn_dict.get('field_map_extensions', {})),
-            infer_unknown=self.infer_unknown)
+            infer_unknown=self.infer_unknown,
+            max_behind=self.max_behind, max_ahead=self.max_ahead)
         for mapper in self._mappers():
             self._register_units(mapper.wanted_groups())
         self.unknown_consoles = set()
@@ -137,7 +143,8 @@ class EcowittDriver(weewx.drivers.AbstractDevice):
                                  "console sends first in every upload." % name)
             stations[str(passkey).strip()] = (name, Mapper(
                 extensions=dict(options.get('field_map_extensions', {})),
-                infer_unknown=options.get('infer_unknown', self.infer_unknown)))
+                infer_unknown=options.get('infer_unknown', self.infer_unknown),
+                max_behind=self.max_behind, max_ahead=self.max_ahead))
         log.info("Listening for %d consoles: %s",
                  len(stations), ', '.join(sorted(n for n, _ in stations.values())))
         return stations

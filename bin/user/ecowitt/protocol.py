@@ -45,12 +45,26 @@ def parse(text):
     return dict(urllib.parse.parse_qsl(text, keep_blank_values=False))
 
 
-def device_time(raw, now=None, tolerance=86400):
+# How far behind ours a console's clock may be before its timestamp is ignored. A
+# console with an internet connection sets its clock by NTP, so a stamp a few minutes
+# old is a late upload rather than a wrong clock: a relay, a queue, a network that was
+# down for a while. WeeWX puts such a packet in the interval its timestamp falls in,
+# and weewx.loopstore works the record out again if that interval has been written
+# already. An hour is well past any delay worth keeping and well short of the years a
+# console with no clock at all reports.
+MAX_BEHIND = 3600
+# And how far ahead. There is no such thing as a reading from the future, so this only
+# has to cover the drift between two clocks that are both roughly right.
+MAX_AHEAD = 60
+
+
+def device_time(raw, now=None, max_behind=MAX_BEHIND, max_ahead=MAX_AHEAD):
     """Return the timestamp the device sent, or None if it is not usable.
 
     Consoles are frequently wrong about the time, sometimes by years, and a record
-    stamped in 2015 is worse than no record at all. So a device time is only accepted
-    when it is close enough to ours to be plausible.
+    stamped in 2015 is worse than no record at all. But one that is merely late is
+    worth keeping, and the window is asymmetric for that reason: a reading can be
+    delayed, it cannot arrive early.
     """
     stamp = raw.get('dateutc')
     if not stamp or stamp == 'now':
@@ -65,11 +79,25 @@ def device_time(raw, now=None, tolerance=86400):
     seconds = _timegm(parsed)
     if now is None:
         now = time.time()
-    if abs(seconds - now) > tolerance:
-        log.warning("Device time %s is %.0f hours away from ours. Using ours.",
-                    stamp, abs(seconds - now) / 3600.0)
+    behind = now - seconds
+    if behind > max_behind or -behind > max_ahead:
+        log.warning("Device time %s is %s %s than ours, past what %s allows. Using "
+                    "ours.", stamp, _how_far(abs(behind)),
+                    "behind" if behind > 0 else "ahead",
+                    "max_behind" if behind > 0 else "max_ahead")
         return None
     return seconds
+
+
+def _how_far(seconds):
+    """A span of time in whatever unit reads best."""
+    if seconds < 120:
+        return "%.0f seconds" % seconds
+    if seconds < 7200:
+        return "%.0f minutes" % (seconds / 60.0)
+    if seconds < 172800:
+        return "%.1f hours" % (seconds / 3600.0)
+    return "%.0f days" % (seconds / 86400.0)
 
 
 def _timegm(parsed):
@@ -120,10 +148,18 @@ def redact(text):
 
 
 def station_id(text):
-    """The PASSKEY, which identifies the console that sent this.
+    """What identifies the console that sent this.
 
-    Read without parsing the rest, because on a station with several consoles this
-    runs before anything else and decides which mapping the payload belongs to.
+    The PASSKEY for the Ecowitt protocol, the station ID for Weather Underground.
+    Read without parsing the rest, because this runs before anything else and decides
+    whether the upload is answered at all.
+
+    Returns an empty string for hardware that identifies itself with neither. Those
+    cannot be told apart, which is a limit of the protocol rather than a decision
+    made here.
     """
-    match = re.search(r'(^|[?&])PASSKEY=([^&]*)', text or '')
-    return match.group(2) if match else None
+    for name in ('PASSKEY', 'ID'):
+        match = re.search(r'(^|[?&])%s=([^&]+)' % name, text or '')
+        if match:
+            return match.group(2)
+    return ''

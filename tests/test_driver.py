@@ -147,3 +147,63 @@ def test_a_station_with_nothing_unknown_leaves_no_report(tmp_path):
         made.closePort()
 
     assert not os.path.exists(path)
+
+
+# ------------------------------------------------------- the console's own clock
+
+def test_a_late_upload_keeps_the_time_it_was_taken(payload):
+    """A reading held up on the way in still belongs to the minute it was taken.
+
+    Ecowitt consoles with an internet connection set their clock by NTP, so the
+    timestamp in the upload is the measurement time even when the upload is late.
+    """
+    import calendar
+    import time
+
+    made = EcowittDriver(port=0, address='127.0.0.1', passkey=FIXTURE_PASSKEY,
+                         field_map_extensions=PLACED)
+    try:
+        body = payload('hp2561ae_pro')
+        sent = calendar.timegm(time.strptime('2026-08-25 11:06:42',
+                                             '%Y-%m-%d %H:%M:%S'))
+        _name, mapper = made._mapper_for(body, '127.0.0.1')
+        packet, _ = mapper.to_packet(body, now=sent + 20 * 60)
+        assert packet['dateTime'] == sent
+    finally:
+        made.closePort()
+
+
+def test_the_clock_window_comes_from_the_configuration(payload):
+    """Somebody whose source is slower than an hour says so, and it reaches the map."""
+    import calendar
+    import time
+
+    made = EcowittDriver(port=0, address='127.0.0.1', passkey=FIXTURE_PASSKEY,
+                         field_map_extensions=PLACED, max_behind=2 * 86400)
+    try:
+        body = payload('hp2561ae_pro')
+        sent = calendar.timegm(time.strptime('2026-08-25 11:06:42',
+                                             '%Y-%m-%d %H:%M:%S'))
+        _name, mapper = made._mapper_for(body, '127.0.0.1')
+        packet, _ = mapper.to_packet(body, now=sent + 86400)
+        assert packet['dateTime'] == sent
+    finally:
+        made.closePort()
+
+
+def test_a_console_whose_clock_is_wrong_falls_back_to_arrival(payload):
+    import calendar
+    import time
+
+    made = EcowittDriver(port=0, address='127.0.0.1', passkey=FIXTURE_PASSKEY,
+                         field_map_extensions=PLACED)
+    try:
+        body = payload('hp2561ae_pro')
+        sent = calendar.timegm(time.strptime('2026-08-25 11:06:42',
+                                             '%Y-%m-%d %H:%M:%S'))
+        arrived = sent + 365 * 86400
+        _name, mapper = made._mapper_for(body, '127.0.0.1')
+        packet, _ = mapper.to_packet(body, now=arrived)
+        assert packet['dateTime'] == int(arrived)
+    finally:
+        made.closePort()

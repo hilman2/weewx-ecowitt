@@ -40,17 +40,25 @@ class Mapper:
             the user's own mapping, from the configuration file.
         infer_unknown (str): 'off', 'series' or 'all'. See above. Default 'series',
             i.e. accept what can be derived and merely report what was guessed.
+        max_behind (int): How many seconds behind ours a console's clock may be
+            before its timestamp is ignored and the arrival time used instead.
+        max_ahead (int): The same, for a clock that is fast.
         fields, groups, channels, contested (dict): The catalog to work from.
             Defaults to the one that ships with the driver. Passing them is for
             tests, so that they do not have to change every time the catalog does.
     """
 
     def __init__(self, extensions=None, infer_unknown=SERIES,
-                 fields=None, groups=None, channels=None, contested=None):
+                 fields=None, groups=None, channels=None, contested=None,
+                 max_behind=protocol.MAX_BEHIND, max_ahead=protocol.MAX_AHEAD):
         if infer_unknown not in MODES:
             raise ValueError("infer_unknown must be one of %s, not '%s'"
                              % (', '.join(MODES), infer_unknown))
         self.mode = infer_unknown
+        # How far the console's own clock may be out before its timestamp is dropped
+        # in favour of the arrival time.
+        self.max_behind = max_behind
+        self.max_ahead = max_ahead
         self.fields = dict(catalog.FIELDS if fields is None else fields)
         self.extensions = dict(extensions or {})
         self.fields.update(self.extensions)
@@ -97,7 +105,8 @@ class Mapper:
                     continue
             packet[field] = value
 
-        stamp = protocol.device_time(raw, now=now)
+        stamp = protocol.device_time(raw, now=now, max_behind=self.max_behind,
+                                    max_ahead=self.max_ahead)
         packet['dateTime'] = int(stamp if stamp is not None
                                  else (now if now is not None else _now()))
         return packet, fresh

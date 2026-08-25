@@ -81,3 +81,44 @@ def test_device_time_survives_nonsense():
     assert protocol.device_time({'dateutc': 'now'}) is None
     assert protocol.device_time({'dateutc': 'yesterday'}) is None
     assert protocol.device_time({}) is None
+
+
+def test_a_late_upload_keeps_its_own_time(payload):
+    """A console on the internet keeps its clock by NTP.
+
+    So a stamp a few minutes old means the upload was held up, not that the clock is
+    wrong, and the reading belongs in the interval it was taken in.
+    """
+    raw = protocol.parse(payload('hp2561ae_pro'))
+    sent = calendar.timegm(time.strptime('2026-08-25 11:06:42', '%Y-%m-%d %H:%M:%S'))
+
+    assert protocol.device_time(raw, now=sent + 5) == sent          # network delay
+    assert protocol.device_time(raw, now=sent + 20 * 60) == sent    # a queue, a relay
+    assert protocol.device_time(raw, now=sent + 59 * 60) == sent    # an outage
+
+
+def test_a_clock_that_is_hours_behind_is_still_refused(payload):
+    """Past an hour it is a clock nobody set, not an upload that was held up."""
+    raw = protocol.parse(payload('hp2561ae_pro'))
+    sent = calendar.timegm(time.strptime('2026-08-25 11:06:42', '%Y-%m-%d %H:%M:%S'))
+
+    assert protocol.device_time(raw, now=sent + 2 * 3600) is None
+
+
+def test_a_clock_that_runs_fast_is_refused_at_once(payload):
+    """There is no such thing as a reading from the future, so the window is tight."""
+    raw = protocol.parse(payload('hp2561ae_pro'))
+    sent = calendar.timegm(time.strptime('2026-08-25 11:06:42', '%Y-%m-%d %H:%M:%S'))
+
+    assert protocol.device_time(raw, now=sent - 30) == sent      # drift between clocks
+    assert protocol.device_time(raw, now=sent - 5 * 60) is None  # a wrong clock
+
+
+def test_the_window_can_be_set(payload):
+    """Somebody who knows their source is slower than an hour says so."""
+    raw = protocol.parse(payload('hp2561ae_pro'))
+    sent = calendar.timegm(time.strptime('2026-08-25 11:06:42', '%Y-%m-%d %H:%M:%S'))
+    a_day_later = sent + 86400
+
+    assert protocol.device_time(raw, now=a_day_later) is None
+    assert protocol.device_time(raw, now=a_day_later, max_behind=2 * 86400) == sent

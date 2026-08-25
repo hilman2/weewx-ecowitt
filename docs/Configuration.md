@@ -63,6 +63,33 @@ that uses it.
 | `infer_unknown` | `series` | What happens to fields the catalog does not cover. See [Unknown fields](Unknown-fields). |
 | `field_map_extensions` | empty | Raw field to WeeWX field. Wins over everything else. See [Field map](Field-map). |
 | `report_file` | `/var/tmp/weewx-ecowitt-report.txt` | Where to leave a report when a station sends something the driver cannot place. Empty switches it off. |
+| `max_behind` | `3600` | How many seconds behind the computer's clock a console's own timestamp may be and still be believed. See [The console's clock](#the-consoles-clock). |
+| `max_ahead` | `60` | The same, for a console whose clock runs fast. |
+
+## The console's clock
+
+Every upload carries `dateutc`, the time the console read its sensors. The driver uses
+it, so a reading belongs to the minute it was taken rather than the minute it arrived.
+
+That matters when an upload is held up: a relay, a queue, a network that was down for
+a while. A console with an internet connection keeps its clock by NTP, so a timestamp a
+few minutes old means the upload was slow, not that the clock is wrong.
+
+The window is not symmetric. A reading can be delayed, so `max_behind` is generous. A
+reading cannot arrive before it was taken, so `max_ahead` only has to cover the drift
+between two clocks that are both roughly right. Outside the window the driver says so
+and falls back to the time the upload arrived:
+
+```
+WARNING user.ecowitt.protocol: Device time 2015-01-01 00:00:00 is 4255 days behind
+ours, past what max_behind allows. Using ours.
+```
+
+Whether a late reading then reaches the archive record it belongs to is WeeWX's
+business, not the driver's. WeeWX 5.5 and later keep the LOOP packets and work the
+record out again; see `[StdLoopStore]` in the WeeWX reference. On older versions a
+packet from an interval that has already been written cannot get into it, so there
+`max_behind` is better set to something small, around `90`.
 
 ## Common setups
 
