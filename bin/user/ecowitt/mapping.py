@@ -33,17 +33,23 @@ class Mapper:
             the user's own mapping, from the configuration file.
         infer_unknown (str): 'off', 'series' or 'all'. See above. Default 'series',
             i.e. accept what can be derived and merely report what was guessed.
+        fields, groups, channels (dict): The catalog to work from. Defaults to the
+            one that ships with the driver. Passing them is for tests, so that they
+            do not have to change every time the catalog does.
     """
 
-    def __init__(self, extensions=None, infer_unknown=SERIES):
+    def __init__(self, extensions=None, infer_unknown=SERIES,
+                 fields=None, groups=None, channels=None):
         if infer_unknown not in MODES:
             raise ValueError("infer_unknown must be one of %s, not '%s'"
                              % (', '.join(MODES), infer_unknown))
         self.mode = infer_unknown
-        self.fields = dict(catalog.FIELDS)
+        self.fields = dict(catalog.FIELDS if fields is None else fields)
         self.fields.update(extensions or {})
-        self.groups = dict(catalog.GROUPS)
-        self.inferrer = infer.Inferrer(self.fields, self.groups)
+        self.groups = dict(catalog.GROUPS if groups is None else groups)
+        self.inferrer = infer.Inferrer(
+            self.fields, self.groups,
+            catalog.CHANNELS if channels is None else channels)
         # Every unmapped field is looked at once. After that it is either part of the
         # mapping or a known refusal, and either way it does not need saying again.
         self.seen = {}

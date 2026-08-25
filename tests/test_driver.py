@@ -49,12 +49,20 @@ def test_an_upload_becomes_a_loop_packet(driver, payload):
     assert packet['dateTime'] > 0
 
 
-def test_new_fields_reach_the_unit_system(driver):
-    """A derived field is no use in a report if WeeWX does not know what it is."""
+def test_new_fields_reach_the_unit_system(payload):
+    """A new field is no use in a report if WeeWX does not know what it is.
+
+    A seventeenth soil channel is past what Ecowitt publishes, so it takes
+    infer_unknown = all. Which is exactly when somebody would set that.
+    """
     import weewx.units
 
-    upload(driver, 'soilmoisture17=30&tempf=59.7')
-    packet = next(driver.genLoopPackets())
+    made = EcowittDriver(port=0, address='127.0.0.1', infer_unknown='all')
+    try:
+        upload(made, 'soilmoisture17=30&tempf=59.7')
+        packet = next(made.genLoopPackets())
+    finally:
+        made.closePort()
 
     assert packet['soilMoist17'] == 30.0
     assert weewx.units.obs_group_dict['soilMoist17'] == 'group_percent'

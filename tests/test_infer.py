@@ -80,14 +80,24 @@ def test_an_inconsistent_family_is_not_a_series():
     assert confused.guess('x3') is None
 
 
-def test_the_real_catalog_continues_its_own_series():
-    """The catalog stops at soilmoisture16. A seventeenth channel needs no release."""
-    inferrer = infer.Inferrer(catalog.FIELDS, catalog.GROUPS)
+def test_a_channel_past_the_end_of_the_family_is_not_derived():
+    """Ecowitt says a WH51 stops at 16. A seventeenth is real, but not routine."""
+    inferrer = infer.Inferrer(catalog.FIELDS, catalog.GROUPS, catalog.CHANNELS)
     guess = inferrer.guess('soilmoisture17')
 
     assert guess.field == 'soilMoist17'
+    assert guess.certain is False
+    assert 'past the 16 a WH51' in guess.why
+
+
+def test_a_channel_within_the_family_is_derived():
+    """Without a published limit, the series is all there is to go on."""
+    inferrer = infer.Inferrer({'zz_ch1': 'zzTemp1', 'zz_ch2': 'zzTemp2'},
+                              {'zzTemp1': 'group_temperature'}, catalog.CHANNELS)
+    guess = inferrer.guess('zz_ch3')
+
+    assert guess.field == 'zzTemp3'
     assert guess.certain is True
-    assert guess.group == 'group_percent'
 
 
 def test_report_reads_like_something_a_person_can_act_on(inferrer):

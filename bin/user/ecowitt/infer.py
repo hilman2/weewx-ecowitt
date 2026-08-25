@@ -112,11 +112,15 @@ class Inferrer:
     Args:
         fields (dict): Raw field name -> WeeWX field, i.e. the catalog.
         groups (dict): WeeWX field -> unit group, for fields outside the WeeWX schema.
+        channels (dict): Raw prefix -> (model, channel count), i.e. how far a family
+            is known to go. A channel beyond that is still reported, but as a guess:
+            either the table is out of date, or something is wrong.
     """
 
-    def __init__(self, fields, groups=None):
+    def __init__(self, fields, groups=None, channels=None):
         self.fields = fields
         self.groups = groups or {}
+        self.channels = channels or {}
         self.series = self._learn_series(fields)
 
     @staticmethod
@@ -168,6 +172,13 @@ class Inferrer:
             # Somebody already sends this one under another name. Do not collide.
             return None
         group = self.groups.get(members[0])
+        limit = self.channels.get(stem)
+        if limit and index > limit[1]:
+            # Ecowitt says this family stops before here. The reading is real, so it is
+            # not dropped, but it is not derived either: say so and let somebody look.
+            return Guess(raw, field, group, None, False,
+                         "channel %d, past the %d a %s is said to support"
+                         % (index, limit[1], limit[0]))
         return Guess(raw, field, group, None, True,
                      "continues %s, e.g. %s" % (stem + tail, members[0]))
 

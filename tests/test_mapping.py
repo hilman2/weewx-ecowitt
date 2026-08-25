@@ -81,10 +81,21 @@ def test_infer_off_reports_nothing_and_takes_nothing(payload):
 
 def test_a_derived_field_is_taken_by_default():
     """A series continued from the catalog is not a guess, so it goes in."""
+    mapper = Mapper(fields={'zz_ch1': 'zzTemp1', 'zz_ch2': 'zzTemp2'},
+                    groups={'zzTemp1': 'group_temperature'}, channels={})
+    packet, guesses = mapper.to_packet('zz_ch3=66.2')
+
+    assert packet['zzTemp3'] == 66.2
+    assert guesses[0].certain is True
+
+
+def test_a_channel_past_the_published_limit_is_not_taken():
+    """Ecowitt says a WH51 stops at 16. A seventeenth is real, but worth a look."""
     packet, guesses = Mapper().to_packet('soilmoisture17=30')
 
-    assert packet['soilMoist17'] == 30.0
-    assert guesses[0].certain is True
+    assert 'soilMoist17' not in packet
+    assert guesses[0].certain is False
+    assert 'past the 16' in guesses[0].why
 
 
 def test_extensions_win_over_the_catalog(payload):
@@ -107,12 +118,13 @@ def test_a_field_is_only_reported_once(payload):
 
 
 def test_unit_groups_grow_with_what_arrives():
-    mapper = Mapper()
-    assert 'soilMoist17' not in mapper.wanted_groups()
+    mapper = Mapper(fields={'zz_ch1': 'zzTemp1', 'zz_ch2': 'zzTemp2'},
+                    groups={'zzTemp1': 'group_temperature'}, channels={})
+    assert 'zzTemp3' not in mapper.wanted_groups()
 
-    mapper.to_packet('soilmoisture17=30')
+    mapper.to_packet('zz_ch3=66.2')
 
-    assert mapper.wanted_groups()['soilMoist17'] == 'group_percent'
+    assert mapper.wanted_groups()['zzTemp3'] == 'group_temperature'
 
 
 def test_bad_mode_is_refused():
@@ -151,8 +163,10 @@ def test_a_channel_can_be_put_where_it_actually_is():
 
 def test_a_derived_channel_can_be_redirected_too():
     """What holds for the catalog holds for a channel the driver worked out."""
-    mapper = Mapper(extensions={'soilmoisture17': 'soilMoist2'})
-    packet, guesses = mapper.to_packet('soilmoisture17=30')
+    mapper = Mapper(extensions={'zz_ch3': 'extraTemp6'},
+                    fields={'zz_ch1': 'zzTemp1', 'zz_ch2': 'zzTemp2'},
+                    groups={}, channels={})
+    packet, guesses = mapper.to_packet('zz_ch3=78.4')
 
-    assert packet['soilMoist2'] == 30.0
+    assert packet['extraTemp6'] == 78.4
     assert guesses == []

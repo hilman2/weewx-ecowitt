@@ -85,25 +85,50 @@ silicone lead for a pool, with a short or a long cable, for indoor or outdoor us
 of them report on `tf_chN`, and nothing in the upload says which is which. The same goes
 for the WH31 on `tempN` and the WN35 on `leafwetness_chN`.
 
-So the catalog has to put them somewhere. `tf_chN` goes to `soilTempN`, because
-`extraTempN` is already taken by the WH31. That is a convention, not a reading, and the
-driver says so the first time a channel turns up:
+Ecowitt says as much itself: its compatibility table lists the three as one row,
+"WN34 S/L/D", with one channel count between them. Nothing in an upload distinguishes
+them, and no driver can.
 
-    INFO user.ecowitt.mapping: New field 'tf_ch3' -> 'soilTemp3' (group_temperature),
-        continues tf_ch, e.g. soilTemp1. Placement is a convention, not a reading:
-        WN34 multi-channel temperature. Sold as a soil probe, a pool lead, ...
+So the catalog has to put them somewhere neutral. `tf_chN` goes to `extraTemp(N+8)`,
+which is also where the Ecowitt gateway driver puts it, so a history from there lines
+up. That is a convention, not a reading, and the driver says so the first time a
+channel turns up:
+
+    INFO user.ecowitt.mapping: New field 'tf_ch3' -> 'extraTemp11'
+        (group_temperature). Placement is a convention, not a reading: WN34
+        multi-channel temperature. Sold with a spike, with a PVC lead, ...
 
 Only you know where the probe is, so say it:
 
 ```ini
 [[field_map_extensions]]
-    tf_ch1 = soilTemp1      # probe in the bed
-    tf_ch2 = extraTemp5     # lead in the pool
-    tf_ch3 = extraTemp6     # north wall
+    tf_ch1 = soilTemp5      # spike in the bed
+    tf_ch2 = extraTemp10    # silicone lead in the pool
+    tf_ch3 = extraTemp11    # north wall
 ```
 
 The channels the catalog covers and the ones this driver derives behave the same way
 here. Whatever you write wins.
+
+### Which sensors have how many channels
+
+The catalog carries the figures from Ecowitt's compatibility table, and they do more
+than document: a channel past the end of a family is reported rather than derived,
+because either the table is out of date or something else is going on.
+
+| Sensor | Channels | Placement |
+|---|---|---|
+| WH31 and relatives | 8 | yours |
+| WN34 S/L/D | 8 | yours |
+| WN35 | 8 | yours |
+| WH51 and WH52 | 16, shared between them | soil |
+| WH41, WH43 | 4 | yours |
+| WH55 | 4 | leaks |
+| WH54 / LDS01 | 4 | yours |
+| WH45, WH46, WH57, WN38 | 1 | fixed |
+
+The WH51 and the WH52 share one pool of 16, so `soilmoisture3` and `soil_ec_hum3` are
+the same channel with a different probe in it. They map to the same field on purpose.
 
 ## Where the fields come from
 

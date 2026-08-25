@@ -56,8 +56,46 @@ GROUPS = {{
 # soil, a pool or a wall is the user's to say, with field_map_extensions.
 PLACEMENT_UNKNOWN = {{
 {placement}}}
+
+# Raw field prefix -> (sensor model, how many channels it can have). From the
+# compatibility table Ecowitt publishes. A channel beyond these does not exist, so
+# nothing should be derived for it.
+CHANNELS = {{
+{channels}}}
 '''
 
+
+# How many channels each family can have, from the compatibility table Ecowitt
+# publishes for its consoles and gateways. These are the highest figures a current
+# console supports; an older one may allow fewer.
+#
+# Two rows of that table settle questions the field names cannot:
+#
+#   The WN34 is one row, "WN34 S/L/D". The spike, the PVC lead and the silicone lead
+#   are one device as far as the console and the protocol are concerned, so nothing in
+#   an upload says which of them sent a reading.
+#
+#   WH51/WH51L and WH52 share a single cell of 16, so they share the channel numbers
+#   too. soilmoisture3 and soil_ec_hum3 are the same channel with a different sensor
+#   in it, not two sensors fighting over one field.
+CHANNELS = {}
+
+# Every raw family a sensor reports on, so that a limit covers the readings, the
+# battery and the signal alike.
+for _model, _count, _prefixes in [
+    ('WH31', 8, ['temp', 'humidity', 'batt', 'wh31rssi', 'wh31sig']),
+    ('WN34', 8, ['tf_ch', 'tf_batt', 'wh34rssi', 'wh34sig']),
+    ('WN35', 8, ['leafwetness_ch', 'leaf_batt', 'wh35rssi', 'wh35sig']),
+    ('WH51', 16, ['soilmoisture', 'soilbatt', 'soilad', 'wh51rssi', 'wh51sig']),
+    ('WH52', 16, ['soil_ec_hum', 'soil_ec_hum_ad', 'soil_ec_temp', 'soil_ec_batt',
+                  'soil_ec_ad', 'soil_ec']),
+    ('WH41', 4, ['pm25_ch', 'pm25batt', 'pm25_avg_24h_ch', 'wh41rssi', 'wh41sig']),
+    ('WH55', 4, ['leak_ch', 'leakbatt', 'wh55rssi', 'wh55sig']),
+    ('LDS01', 4, ['air_ch', 'depth_ch', 'thi_ch', 'ldsbatt', 'ldsheat_ch', 'ldspw_ch',
+                  'wh54sig', 'wh54rssi', 'wh54_ch']),
+]:
+    for _prefix in _prefixes:
+        CHANNELS[_prefix] = (_model, _count)
 
 # Families where the WeeWX field name claims something the hardware never said. These
 # are multi-channel sensors: the same model reports on the same field whether it is a
@@ -105,6 +143,21 @@ OVERRIDES = {
     # as a ten digit number of strikes.
     'lightning_time': ('lightning_time', 'group_time'),
 }
+
+
+# Families that share their channel numbers, so two raw names for one field are the
+# same channel rather than a clash. The WH51 and the WH52 occupy one pool of 16.
+SHARED = [
+    ('soilmoisture', 'soil_ec_hum'),
+    ('soilbatt', 'soil_ec_batt'),
+    ('soilad', 'soil_ec_hum_ad'),
+]
+
+
+def _shares_channels(raws):
+    """True if these raw names are the same channel seen through two sensor types."""
+    stems = {re.sub(r'\d+$', '', raw) for raw in raws}
+    return any(stems <= set(pair) for pair in SHARED)
 
 
 def _remap(raw, groups):
@@ -210,7 +263,8 @@ def main():
                                count=len(fields),
                                fields=render(fields),
                                groups=render(used_groups),
-                               placement=render(PLACEMENT_UNKNOWN)))
+                               placement=render(PLACEMENT_UNKNOWN),
+                               channels=render(CHANNELS)))
 
     print("%d fields, %d unit groups -> %s" % (len(fields), len(used_groups), args.out))
     if OVERRIDES:
@@ -223,7 +277,8 @@ def main():
     collisions = {}
     for raw, field in fields.items():
         collisions.setdefault(field, []).append(raw)
-    collisions = {f: sorted(r) for f, r in collisions.items() if len(r) > 1}
+    collisions = {f: sorted(r) for f, r in collisions.items()
+                  if len(r) > 1 and not _shares_channels(r)}
     if collisions:
         print("%d fields are written by more than one reading. Whichever arrives last "
               "wins:" % len(collisions))
