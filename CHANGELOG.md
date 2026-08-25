@@ -13,8 +13,9 @@ First version.
   schema, so that skins and reports find it.
 - The time of the last lightning strike goes to `lightning_time`, not into
   `lightning_disturber_count`.
-- `compat = ecowittcustom` keeps the field names of the driver a history was started
-  under, so a series does not stop and a different sensor does not continue it.
+- Fields whose placement the hardware does not settle are not written until they are
+  named in `field_map_extensions`. Six of them on a station with two WN34 probes, a
+  WH52 and a lightning sensor; the other twenty-nine readings arrive as usual.
 - `python -m user.ecowitt` reports which of the fields it would write to already hold
   readings, before anything is changed.
 - Uses `weewx.listener` where available, and ships a copy for older WeeWX.

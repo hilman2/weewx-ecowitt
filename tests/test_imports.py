@@ -13,7 +13,7 @@ import importlib
 
 import pytest
 
-WITHOUT_WEEWX = ['ecowitt', 'ecowitt.catalog', 'ecowitt.compat', 'ecowitt.columns',
+WITHOUT_WEEWX = ['ecowitt', 'ecowitt.catalog', 'ecowitt.columns',
                  'ecowitt.infer', 'ecowitt.mapping', 'ecowitt.protocol', 'listener']
 WITH_WEEWX = ['ecowitt.driver', 'ecowitt.__main__']
 

@@ -17,9 +17,13 @@ weewx = pytest.importorskip('weewx', reason="WeeWX is not installed")
 from ecowitt.driver import EcowittDriver  # noqa: E402  (after the skip)
 
 
+# A WN34 channel goes nowhere until somebody says where. These tests say.
+PLACED = {'tf_ch1': 'extraTemp9', 'tf_ch2': 'extraTemp10'}
+
+
 @pytest.fixture
 def driver():
-    made = EcowittDriver(port=0, address='127.0.0.1')
+    made = EcowittDriver(port=0, address='127.0.0.1', field_map_extensions=PLACED)
     yield made
     made.closePort()
 
@@ -57,7 +61,8 @@ def test_new_fields_reach_the_unit_system(payload):
     """
     import weewx.units
 
-    made = EcowittDriver(port=0, address='127.0.0.1', infer_unknown='all')
+    made = EcowittDriver(port=0, address='127.0.0.1', infer_unknown='all',
+                         field_map_extensions=PLACED)
     try:
         upload(made, 'soilmoisture17=30&tempf=59.7')
         packet = next(made.genLoopPackets())

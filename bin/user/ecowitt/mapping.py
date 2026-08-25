@@ -14,7 +14,7 @@ registering.
 import logging
 import re
 
-from . import catalog, compat, infer, protocol
+from . import catalog, infer, protocol
 
 log = logging.getLogger(__name__)
 
@@ -40,24 +40,27 @@ class Mapper:
             the user's own mapping, from the configuration file.
         infer_unknown (str): 'off', 'series' or 'all'. See above. Default 'series',
             i.e. accept what can be derived and merely report what was guessed.
-        compat_with (str): Name of the driver a history was started under, so that
-            its field names are kept. See compat.py.
-        fields, groups, channels (dict): The catalog to work from. Defaults to the
-            one that ships with the driver. Passing them is for tests, so that they
-            do not have to change every time the catalog does.
+        fields, groups, channels, contested (dict): The catalog to work from.
+            Defaults to the one that ships with the driver. Passing them is for
+            tests, so that they do not have to change every time the catalog does.
     """
 
-    def __init__(self, extensions=None, infer_unknown=SERIES, compat_with=None,
-                 fields=None, groups=None, channels=None):
+    def __init__(self, extensions=None, infer_unknown=SERIES,
+                 fields=None, groups=None, channels=None, contested=None):
         if infer_unknown not in MODES:
             raise ValueError("infer_unknown must be one of %s, not '%s'"
                              % (', '.join(MODES), infer_unknown))
         self.mode = infer_unknown
         self.fields = dict(catalog.FIELDS if fields is None else fields)
-        # Where somebody came from first, then what they asked for. Their own mapping
-        # has to win over a profile, or they could not correct one.
-        self.fields.update(compat.profile(compat_with))
-        self.fields.update(extensions or {})
+        self.extensions = dict(extensions or {})
+        self.fields.update(self.extensions)
+        # Fields another driver puts somewhere else. Until the user says which
+        # placement they want, these are not written: either answer can be the one
+        # that continues an existing series, and the wrong one cannot be undone.
+        self.undecided = dict(catalog.CONTESTED if contested is None else contested)
+        for raw in self.extensions:
+            # Naming a field yourself is the decision. That settles it.
+            self.undecided.pop(raw, None)
         self.groups = dict(catalog.GROUPS if groups is None else groups)
         self.inferrer = infer.Inferrer(
             self.fields, self.groups,
@@ -84,6 +87,9 @@ class Mapper:
         packet = {}
         fresh = []
         for name, value in readings.items():
+            if name in self.undecided:
+                self._say_undecided(name)
+                continue
             field = self.fields.get(name)
             if field is None:
                 field = self._unmapped(name, fresh)
@@ -95,6 +101,20 @@ class Mapper:
         packet['dateTime'] = int(stamp if stamp is not None
                                  else (now if now is not None else _now()))
         return packet, fresh
+
+    def _say_undecided(self, name):
+        """Say once that a field is waiting for a decision, and what settles it."""
+        if name in self.warned:
+            return
+        self.warned.add(name)
+        log.warning(
+            "'%s' is not being written, because drivers disagree about where it goes. "
+            "The wrong choice mixes two sensors into one column, and afterwards they "
+            "cannot be separated. Add one of these under [[field_map_extensions]]: "
+            "'%s = %s' for this driver's placement, or '%s = %s' if your history came "
+            "from %s.",
+            name, name, self.fields.get(name, '?'),
+            name, self.undecided[name], catalog.CONTESTED_WITH)
 
     def _check_shared_channels(self, readings):
         """Warn if two sensors turn out to be writing the same field after all.

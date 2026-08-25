@@ -1019,3 +1019,56 @@ CHANNELS = {
     'wh55rssi': ('WH55', 4),
     'wh55sig': ('WH55', 4),
 }
+
+# Raw field -> where another driver puts it, for every field this one places
+# differently. Generated from REMAP and OVERRIDES, so it cannot drift from them.
+#
+# These are not written until the user says where they want them. Either answer can
+# be the one that continues somebody's history, and the wrong one puts two sensors in
+# one column, which nothing afterwards can separate.
+CONTESTED = {
+    'lightning_time': 'lightning_disturber_count',
+    'soil_ec_temp1': 'soilmTemp1',
+    'soil_ec_temp10': 'soilmTemp10',
+    'soil_ec_temp11': 'soilmTemp11',
+    'soil_ec_temp12': 'soilmTemp12',
+    'soil_ec_temp13': 'soilmTemp13',
+    'soil_ec_temp14': 'soilmTemp14',
+    'soil_ec_temp15': 'soilmTemp15',
+    'soil_ec_temp16': 'soilmTemp16',
+    'soil_ec_temp2': 'soilmTemp2',
+    'soil_ec_temp3': 'soilmTemp3',
+    'soil_ec_temp4': 'soilmTemp4',
+    'soil_ec_temp5': 'soilmTemp5',
+    'soil_ec_temp6': 'soilmTemp6',
+    'soil_ec_temp7': 'soilmTemp7',
+    'soil_ec_temp8': 'soilmTemp8',
+    'soil_ec_temp9': 'soilmTemp9',
+    'tf_batt1': 'soilTempBatt1',
+    'tf_batt10': 'soilTempBatt10',
+    'tf_batt11': 'soilTempBatt11',
+    'tf_batt12': 'soilTempBatt12',
+    'tf_batt13': 'soilTempBatt13',
+    'tf_batt14': 'soilTempBatt14',
+    'tf_batt15': 'soilTempBatt15',
+    'tf_batt16': 'soilTempBatt16',
+    'tf_batt2': 'soilTempBatt2',
+    'tf_batt3': 'soilTempBatt3',
+    'tf_batt4': 'soilTempBatt4',
+    'tf_batt5': 'soilTempBatt5',
+    'tf_batt6': 'soilTempBatt6',
+    'tf_batt7': 'soilTempBatt7',
+    'tf_batt8': 'soilTempBatt8',
+    'tf_batt9': 'soilTempBatt9',
+    'tf_ch1': 'soilTemp1',
+    'tf_ch2': 'soilTemp2',
+    'tf_ch3': 'soilTemp3',
+    'tf_ch4': 'soilTemp4',
+    'tf_ch5': 'soilTemp5',
+    'tf_ch6': 'soilTemp6',
+    'tf_ch7': 'soilTemp7',
+    'tf_ch8': 'soilTemp8',
+}
+
+# The driver those other placements come from.
+CONTESTED_WITH = 'ecowittcustom'

@@ -30,6 +30,9 @@ class EcowittInstaller(ExtensionInstaller):
                     'driver': 'user.ecowitt.driver',
                     'port': '8000',
                     'infer_unknown': 'series',
+                    # 'compat' is deliberately absent. Fields that drivers place
+                    # differently stay out until somebody says which placement is
+                    # wanted, because the wrong one cannot be undone.
                     'field_map_extensions': {}}},
             files=[
                 ('bin/user', ['bin/user/listener.py']),

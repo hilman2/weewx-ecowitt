@@ -90,31 +90,51 @@ Whatever the setting, the log says what turned up:
 A field only reaches the database if the archive table has a column for it. Fields
 outside the standard schema need `weectl database add-column` first.
 
-## Coming from another driver
+## Fields that wait for you
 
-Changing driver should not change what a column means, and this one does not place
-everything the way its predecessors did. Somebody arriving from `ecowittcustom` has
-years of WN34 readings in `soilTemp1`, because that is where that driver put them. Here
-a WN34 goes to `extraTemp9` and a WH52 goes to `soilTemp1`, which is right for a fresh
-install and quietly wrong for theirs: the old series stops, and a different sensor
-starts writing into it.
+Some readings have no natural home, and putting them in the wrong one cannot be
+undone: two sensors in one column can never be told apart again. Those fields are not
+written until you say where they go.
 
-So say where you came from:
+On a station with two WN34 probes, a WH52 and a lightning sensor, that is six fields
+out of thirty-five. The other twenty-nine arrive without a word, because for them the
+hardware settles it. An outdoor temperature is an outdoor temperature.
 
-```ini
-[Ecowitt]
-    compat = ecowittcustom      # or gw1000, or none
-```
+What waits, and why:
 
-The profile is applied before your own `field_map_extensions`, so anything you set
-still wins. To move a series onto the new field later, rename the column with
-`weectl database rename-column` and drop the setting.
+- **Multi-channel sensors.** A WN34 reports on `tf_ch1` whether it is a spike in a
+  bed, a silicone lead in a pool or a probe on a north wall. Only you know which.
+- **Fields other drivers place elsewhere.** `ecowittcustom` put the WN34 on
+  `soilTemp1`. If your history is there, continuing it is right; if you are starting
+  fresh, `extraTemp9` is. Both are defensible, so neither is assumed.
 
-If you are not sure what is in there, look before you switch:
+The log says it once per field, with both lines ready:
+
+    WARNING user.ecowitt.mapping: 'tf_ch1' is not being written, because drivers
+    disagree about where it goes. The wrong choice mixes two sensors into one column,
+    and afterwards they cannot be separated. Add one of these under
+    [[field_map_extensions]]: 'tf_ch1 = extraTemp9' for this driver's placement, or
+    'tf_ch1 = soilTemp1' if your history came from ecowittcustom.
+
+And `python -m user.ecowitt` prints the whole block to paste:
+
+    6 fields are not being written, because where they go is your call and
+    not the hardware's. Paste this into your driver section and uncomment the
+    line you want:
+
+        [[field_map_extensions]]
+            # tf_ch1
+            #tf_ch1 = extraTemp9        # this driver
+            #tf_ch1 = soilTemp1         # ecowittcustom
+
+    Anything else is allowed too. A WN34 on a pool lead is not a soil
+    temperature, so somewhere in extraTemp is often what you want.
+
+### Look before you switch
+
+Whatever you choose, check what is already in those columns. One upload is enough:
 
     python -m user.ecowitt --port 8001 --config /etc/weewx/weewx.conf
-
-Point the console at that port for one upload, and it will tell you:
 
     12 of these fields already hold readings:
 

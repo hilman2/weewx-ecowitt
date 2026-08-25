@@ -65,14 +65,12 @@ class EcowittDriver(weewx.drivers.AbstractDevice):
 
         self.model = stn_dict.get('model', 'Ecowitt')
         self.mapper = Mapper(extensions=dict(stn_dict.get('field_map_extensions', {})),
-                             infer_unknown=stn_dict.get('infer_unknown', 'series'),
-                             compat_with=stn_dict.get('compat'))
+                             infer_unknown=stn_dict.get('infer_unknown', 'series'))
         self._register_units(self.mapper.wanted_groups())
 
         listener_options = dict(stn_dict)
         listener_options.pop('driver', None)
         listener_options.pop('field_map_extensions', None)
-        listener_options.pop('compat', None)
         listener_options.pop('infer_unknown', None)
         listener_options.pop('model', None)
         listener_options.setdefault('response', ECOWITT_RESPONSE)
@@ -133,9 +131,16 @@ class EcowittConfEditor(weewx.drivers.AbstractConfEditor):
     #   all     keep whatever can be named, including from naming rules
     infer_unknown = series
 
-    # If a history was started under another driver, keep its field names so that
-    # the series carry on. One of: ecowittcustom, gw1000, none.
-    compat = none
+    # Some fields are placed differently by different drivers, and the wrong choice
+    # puts two sensors in one column. So this has no default: until it says something,
+    # those fields are left out and the log names them.
+    #
+    #   none            this driver's placement. For a fresh start.
+    #   ecowittcustom   keep the field names of that driver, so an existing history
+    #                   carries on where it is.
+    #   gw1000          likewise for the Ecowitt gateway driver.
+    #
+    # compat = none
 
     # Your own mapping, which wins over the built-in one.
     [[field_map_extensions]]

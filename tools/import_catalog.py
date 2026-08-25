@@ -62,6 +62,18 @@ PLACEMENT_UNKNOWN = {{
 # nothing should be derived for it.
 CHANNELS = {{
 {channels}}}
+
+# Raw field -> where another driver puts it, for every field this one places
+# differently. Generated from REMAP and OVERRIDES, so it cannot drift from them.
+#
+# These are not written until the user says where they want them. Either answer can
+# be the one that continues somebody's history, and the wrong one puts two sensors in
+# one column, which nothing afterwards can separate.
+CONTESTED = {{
+{contested}}}
+
+# The driver those other placements come from.
+CONTESTED_WITH = 'ecowittcustom'
 '''
 
 
@@ -222,15 +234,21 @@ def main():
     fields = {}
     unresolved = []
     ambiguous = []
+    contested = {}
     for raw, intermediate in sorted(label_map.items()):
+        targets = by_intermediate.get(intermediate)
+        upstream = sorted(targets)[0] if targets else None
         if raw in OVERRIDES:
             fields[raw], groups[OVERRIDES[raw][0]] = OVERRIDES[raw]
+            if upstream and upstream != fields[raw]:
+                contested[raw] = upstream
             continue
         remapped = _remap(raw, groups)
         if remapped:
             fields[raw] = remapped
+            if upstream and upstream != remapped:
+                contested[raw] = upstream
             continue
-        targets = by_intermediate.get(intermediate)
         if not targets:
             unresolved.append(raw)
             continue
@@ -264,12 +282,17 @@ def main():
                                fields=render(fields),
                                groups=render(used_groups),
                                placement=render(PLACEMENT_UNKNOWN),
-                               channels=render(CHANNELS)))
+                               channels=render(CHANNELS),
+                               contested=render(contested)))
 
     print("%d fields, %d unit groups -> %s" % (len(fields), len(used_groups), args.out))
-    if OVERRIDES:
-        print("%d fields differ from upstream on purpose: %s"
-              % (len(OVERRIDES), ' '.join(sorted(OVERRIDES))))
+    if contested:
+        print("%d fields are placed differently from upstream, so they will not be "
+              "written until the user says which placement they want:" % len(contested))
+        for raw in sorted(contested)[:4]:
+            print("  %-20s here %-18s upstream %s" % (raw, fields[raw], contested[raw]))
+        if len(contested) > 4:
+            print("  ... and %d more" % (len(contested) - 4))
     if ambiguous:
         print("%d readings had more than one target upstream:" % len(ambiguous))
         for raw, chosen, rest in ambiguous:

@@ -20,7 +20,7 @@ import logging
 import sys
 import time
 
-from . import VERSION, columns, infer
+from . import VERSION, catalog, columns, infer
 from .mapping import Mapper, placement_note
 
 try:
@@ -46,8 +46,6 @@ def main(argv=None):
     parser.add_argument('--infer-unknown', default='all',
                         choices=['off', 'series', 'all'],
                         help="Default 'all' here, so that everything gets a proposal.")
-    parser.add_argument('--compat', help="Keep the field names of another driver, e.g. "
-                                         "ecowittcustom. See compat.py.")
     parser.add_argument('--no-database', action='store_true',
                         help="Skip looking at the database. Faster, and one section "
                              "less when setting up from scratch.")
@@ -57,7 +55,7 @@ def main(argv=None):
     print("weewx-ecowitt %s. Listening on %s:%s. Point the console here."
           % (VERSION, args.address or '*', args.port))
 
-    mapper = Mapper(infer_unknown=args.infer_unknown, compat_with=args.compat)
+    mapper = Mapper(infer_unknown=args.infer_unknown)
     packet = {}
     guesses = []
     seen = 0
@@ -79,9 +77,39 @@ def main(argv=None):
         listener.close()
 
     _report(packet, guesses, mapper, args.config)
+    _decisions(mapper)
     if not args.no_database:
         _check_history(packet, args.config)
     return 0
+
+
+def _decisions(mapper):
+    """Print the configuration block for everything that is waiting on the user."""
+    waiting = sorted(mapper.warned & set(mapper.undecided))
+    if not waiting:
+        return
+    print("\n%d fields are not being written, because where they go is your call and"
+          "\nnot the hardware's. Paste this into your driver section and uncomment the"
+          "\nline you want:\n" % len(waiting))
+    print("    [[field_map_extensions]]")
+    for raw in waiting:
+        print("        # %s" % raw)
+        print("        #%s = %s        # this driver" % (raw, mapper.fields.get(raw)))
+        print("        #%s = %s        # %s"
+              % (raw, mapper.undecided[raw], catalog.CONTESTED_WITH))
+    print("\nAnything else is allowed too. A WN34 on a pool lead is not a soil"
+          "\ntemperature, so somewhere in extraTemp is often what you want. The"
+          "\ntemperature fields your schema already has:")
+    print("    " + ', '.join(sorted(_free_temperature_fields())))
+
+
+def _free_temperature_fields():
+    """WeeWX fields a temperature reading could reasonably go to."""
+    try:
+        known = columns.schema_fields()
+    except ImportError:
+        return set()
+    return {f for f in known if f.startswith(('extraTemp', 'soilTemp', 'leafTemp'))}
 
 
 def _report(packet, guesses, mapper, config):
@@ -138,9 +166,8 @@ def _check_history(packet, config):
         print("  %-26s %9d values, last %s" % (field, count, when))
     print("\nIf those came from the same sensor, there is nothing to do. If they came"
           "\nfrom a different one, this driver is about to write a second series into"
-          "\nthe same column, and afterwards the two cannot be told apart. Coming from"
-          "\nanother driver, name it: compat = ecowittcustom. Otherwise map the field"
-          "\nyourself under [[field_map_extensions]].")
+          "\nthe same column, and afterwards the two cannot be told apart. Give it a"
+          "\nfield of its own under [[field_map_extensions]].")
 
 
 if __name__ == '__main__':
