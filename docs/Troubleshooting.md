@@ -96,6 +96,27 @@ record. See [Database columns](Database-columns).
 Most skins list which fields they display. A field the skin does not name will not
 appear however well it is stored.
 
+## Rain stays empty
+
+Ecowitt hardware sends rain as running counters: `dailyrainin`, `hourlyrainin`,
+`eventrainin`. It never sends the amount that fell since the last upload, which is
+what WeeWX calls `rain` and what every rain total is built from.
+
+`StdDelta` turns one into the other. The installer sets it up, so a fresh install
+needs nothing. Versions up to 0.3.0 did not, and there `rain` is empty in every
+packet and the daily total never moves. Reinstall the extension, or add this by hand:
+
+```ini
+[StdWXCalculate]
+    [[Delta]]
+        [[[rain]]]
+            input = dayRain
+```
+
+The counter resets at midnight. WeeWX notices and logs `'rain' counter reset
+detected`, then skips that one interval rather than recording a day's worth of rain
+in it.
+
 ## Readings look wrong by a factor
 
 Almost always a unit. The Ecowitt protocol carries US units: °F, inHg, inches, mph.

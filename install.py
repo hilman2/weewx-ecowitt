@@ -7,7 +7,7 @@
 
 from weecfg.extension import ExtensionInstaller
 
-VERSION = '0.3.0'
+VERSION = '0.3.1'
 
 
 def loader():
@@ -26,6 +26,15 @@ class EcowittInstaller(ExtensionInstaller):
             config={
                 'Station': {
                     'station_type': 'Ecowitt'},
+                # Ecowitt hardware sends rain as running counters, never as the
+                # amount since the last upload. WeeWX wants 'rain', the amount in
+                # the packet, and StdDelta is what turns one into the other. Without
+                # this the station records no rain at all: every counter arrives and
+                # 'rain' stays empty.
+                'StdWXCalculate': {
+                    'Delta': {
+                        'rain': {
+                            'input': 'dayRain'}}},
                 'Ecowitt': {
                     'driver': 'user.ecowitt.driver',
                     'port': '8000',

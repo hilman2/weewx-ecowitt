@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.1 (2026-08-25)
+
+Fix: no rain was recorded at all. Ecowitt hardware sends rain as running counters,
+never as the amount since the last upload, so `rain` stayed empty in every packet
+and nothing reached the daily total. The installer now sets up `StdDelta` to derive
+`rain` from `dayRain`.
+
+Anyone already running 0.3.0 or earlier should reinstall the extension, or add this
+to `weewx.conf` by hand:
+
+    [StdWXCalculate]
+        [[Delta]]
+            [[[rain]]]
+                input = dayRain
+
 ## 0.3.0 (2026-08-25)
 
 The driver now answers only to the consoles it knows. The first one it hears is

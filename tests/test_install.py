@@ -13,6 +13,7 @@ to find out.
 import glob
 import os.path
 import re
+import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -52,3 +53,43 @@ def test_the_version_matches_the_package():
         declared = re.search(r"VERSION = '([^']+)'", fd.read()).group(1)
 
     assert declared == ecowitt.VERSION
+
+
+def installer_config():
+    """The configuration the installer merges into weewx.conf."""
+    import importlib.util
+    import sys
+
+    spec = importlib.util.spec_from_file_location('ecowitt_install',
+                                                  os.path.join(ROOT, 'install.py'))
+    module = importlib.util.module_from_spec(spec)
+    sys.modules['ecowitt_install'] = module
+    spec.loader.exec_module(module)
+    return module.loader()['config']
+
+
+def test_the_installer_sets_up_rain():
+    """Without this the station records no rain at all.
+
+    Ecowitt sends running counters, never the amount since the last upload. WeeWX
+    wants 'rain', the amount in the packet, and StdDelta is what turns one into the
+    other. Every counter would arrive and 'rain' would stay empty.
+    """
+    import pytest
+
+    pytest.importorskip('weecfg', reason="WeeWX is not installed")
+
+    delta = installer_config()['StdWXCalculate']['Delta']
+    assert delta['rain']['input'] == 'dayRain'
+
+
+def test_the_counter_it_uses_is_one_the_driver_produces():
+    """A counter the field map does not fill would leave rain empty just the same."""
+    import pytest
+
+    pytest.importorskip('weecfg', reason="WeeWX is not installed")
+    sys.path.insert(0, os.path.join(ROOT, 'bin'))
+    from user.ecowitt import catalog
+
+    wanted = installer_config()['StdWXCalculate']['Delta']['rain']['input']
+    assert wanted in catalog.FIELDS.values()
