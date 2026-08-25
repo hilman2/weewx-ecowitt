@@ -11,6 +11,7 @@ A WeeWX driver for Ecowitt hardware that uploads to a custom server.
 ## How readings are placed
 
 - **[Field map](Field-map)** — from raw field to database column
+- **[Hardware](Hardware)** — every device: arrays, consoles, sensors, and the older Fine Offset kit
 - **[Sensors](Sensors)** — every field this driver knows, by sensor
 - **[Unknown fields](Unknown-fields)** — what happens to a field the catalog misses
 - **[Database columns](Database-columns)** — which columns a station needs, and how to add them

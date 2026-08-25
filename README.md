@@ -97,6 +97,7 @@ outside the standard schema need `weectl database add-column` first.
 | [Installation](docs/Installation.md) | install, point the hardware at it, start |
 | [Configuration](docs/Configuration.md) | every option, with worked examples |
 | [Field map](docs/Field-map.md) | how a reading gets to a column |
+| [Hardware](docs/Hardware.md) | every device: arrays, consoles, sensors, older Fine Offset kit |
 | [Sensors](docs/Sensors.md) | every field this driver knows, by sensor |
 | [Unknown fields](docs/Unknown-fields.md) | what happens to a field the catalog misses |
 | [Database columns](docs/Database-columns.md) | which columns a station needs |

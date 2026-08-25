@@ -57,13 +57,19 @@ passes quietly.
 `CONTESTED` in the generated catalog comes from `REMAP` and `OVERRIDES`, so the list
 of fields that wait for the user cannot drift from the decisions that made them wait.
 
-## The sensor reference
+## The generated pages
 
-`docs/Sensors.md` is generated too:
+`docs/Sensors.md` and `docs/Hardware.md` are generated:
 
 ```
 python tools/build_reference.py
+python tools/build_hardware.py
 ```
+
+The hardware page keeps the descriptions in the tool and takes the field lists from
+the catalog, so the two cannot drift apart. It also prints how many catalog fields
+belong to no device, which is how gaps in the list get found. Eight are unidentified
+at the moment.
 
 ## Checking against Ecowitt
 
