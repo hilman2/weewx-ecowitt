@@ -65,12 +65,24 @@ guide, under *Porting to new hardware*.
 | Value | What happens to a field the catalog does not cover |
 |---|---|
 | `off` | Dropped, the way other drivers do it. Still logged. |
-| `series` | Taken when it continues a known series. Anything else is reported and left out. This is the default. |
+| `series` | Taken when it continues a known series **and** the family's placement is not in question. Anything else is reported and left out. This is the default. |
 | `all` | Taken whenever the name says what it measures, e.g. `mph` is a wind speed. |
 
-`series` is the default because a derived field is not a guess. `all` will get you the
-reading sooner, at the risk of a unit nobody checked. Whatever the setting, the log says
-what turned up:
+`series` is the default because a derived field is not a guess. But being sure where a
+channel *belongs* is not the same as being sure the field is *free*. A new WN34 channel
+would land on `extraTemp`, where a sensor you set up two years ago may already have its
+history, and two series in one column cannot be told apart afterwards. So a channel from
+a family whose placement is a convention waits for you, with the line to paste:
+
+    INFO user.ecowitt.mapping: New channel 'temp9f' would go to 'extraTemp9'. Which
+        sensor that is, and whether that field is free, only you know. Add
+        'temp9f = extraTemp9' under [[field_map_extensions]] to accept it.
+
+Families with nowhere else to be, such as a laser rangefinder's depth or a lightning
+count, are taken without asking. `all` will get you everything sooner, at the risk of a
+unit nobody checked.
+
+Whatever the setting, the log says what turned up:
 
     INFO user.ecowitt.mapping: New field 'leafwetness_ch5' -> 'leafWet5'
         (group_percent), continues leafwetness_ch, e.g. leafWet1

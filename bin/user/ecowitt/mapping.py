@@ -26,7 +26,8 @@ SHARED_CHANNELS = [
 ]
 
 OFF = 'off'          # drop it, the way every other driver does
-SERIES = 'series'    # take it when it continues a series, report the rest
+SERIES = 'series'    # take it when it continues a series and its placement is not
+                     # in question, report the rest
 ALL = 'all'          # take whatever can be named, including from rules
 MODES = (OFF, SERIES, ALL)
 
@@ -124,11 +125,21 @@ class Mapper:
             return None
 
         fresh.append(guess)
-        take = self.mode == ALL or (self.mode == SERIES and guess.certain)
+        note = placement_note(name)
+        take = self.mode == ALL or (self.mode == SERIES and guess.certain and not note)
         if not take:
-            log.info("New field '%s' looks like %s (%s), but it was only guessed. "
-                     "Left out. Add it to field_map_extensions to keep it.",
-                     name, guess.group or 'unknown', guess.why)
+            if note and guess.certain:
+                # The channel is derived, but where its family lands is a convention,
+                # and the field it would take may already hold a different sensor's
+                # history. Two series in one column cannot be separated afterwards.
+                log.info("New channel '%s' would go to '%s'. Which sensor that is, and "
+                         "whether that field is free, only you know. Add "
+                         "'%s = %s' under [[field_map_extensions]] to accept it.%s",
+                         name, guess.field, name, guess.field, note)
+            else:
+                log.info("New field '%s' looks like %s (%s), but it was only guessed. "
+                         "Left out. Add it to field_map_extensions to keep it.",
+                         name, guess.group or 'unknown', guess.why)
             self.ignored.add(name)
             return None
 

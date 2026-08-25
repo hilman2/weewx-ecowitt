@@ -193,3 +193,44 @@ def test_the_warning_is_said_once(caplog):
         mapper.to_packet('soilmoisture3=31&soil_ec_hum3=46')
 
     assert caplog.text == ''
+
+
+# A family whose placement is a convention, here with room left to grow. The shipped
+# catalog has no such gap today, which is the point: this is what happens the day
+# Ecowitt adds a channel to one.
+AMBIGUOUS = {'temp1f': 'myTemp1', 'temp2f': 'myTemp2'}
+
+
+def test_a_new_channel_of_an_ambiguous_family_waits_for_a_decision(caplog):
+    """myTemp3 may already hold another sensor's history. Two series in one column
+    cannot be told apart later, so this one waits to be confirmed."""
+    import logging
+
+    mapper = Mapper(fields=AMBIGUOUS, groups={'myTemp1': 'group_temperature'},
+                    channels={})
+    with caplog.at_level(logging.INFO):
+        packet, guesses = mapper.to_packet('temp3f=66.2')
+
+    assert 'myTemp3' not in packet
+    assert guesses[0].certain is True       # derived, and still not taken
+    assert 'field_map_extensions' in caplog.text
+
+
+def test_an_unambiguous_new_channel_is_taken():
+    """Nobody puts a laser rangefinder anywhere but where it measures."""
+    mapper = Mapper(fields={'zz_ch1': 'zzDepth1', 'zz_ch2': 'zzDepth2'},
+                    groups={'zzDepth1': 'group_distance'}, channels={})
+    packet, guesses = mapper.to_packet('zz_ch3=1200')
+
+    assert packet['zzDepth3'] == 1200.0
+    assert guesses[0].certain is True
+
+
+def test_the_suggested_line_is_ready_to_paste(caplog):
+    import logging
+
+    mapper = Mapper(fields=AMBIGUOUS, groups={}, channels={})
+    with caplog.at_level(logging.INFO):
+        mapper.to_packet('temp3f=66.2')
+
+    assert "'temp3f = myTemp3'" in caplog.text
