@@ -32,9 +32,12 @@ from .mapping import Mapper
 try:
     # WeeWX 5.6 and later carry the listener.
     from weewx.listener import HTTPListener
+    LISTENER_FROM = 'weewx.listener'
 except ImportError:
-    # Older WeeWX gets the copy that ships with this extension. Same file.
+    # Older WeeWX gets the copy that ships with this extension. Byte for byte the same
+    # file, checked by a test, and it stops shipping once 5.6 is everywhere.
     from user.listener import HTTPListener
+    LISTENER_FROM = 'user.listener, the bundled copy'
 
 log = logging.getLogger(__name__)
 
@@ -57,7 +60,8 @@ class EcowittDriver(weewx.drivers.AbstractDevice):
     """Receives uploads from Ecowitt hardware and turns them into loop packets."""
 
     def __init__(self, **stn_dict):
-        log.info("Driver version is %s", DRIVER_VERSION)
+        log.info("Driver version is %s, listening with %s",
+                 DRIVER_VERSION, LISTENER_FROM)
 
         self.model = stn_dict.get('model', 'Ecowitt')
         self.mapper = Mapper(extensions=dict(stn_dict.get('field_map_extensions', {})),
