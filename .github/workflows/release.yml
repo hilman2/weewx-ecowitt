@@ -1,0 +1,42 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check that the tag matches the version in the code
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          for file in install.py bin/user/ecowitt/__init__.py; do
+            grep -q "VERSION = '${tag}'" "$file" \
+              || { echo "$file does not say ${tag}"; exit 1; }
+          done
+
+      - name: Build the extension package
+        run: |
+          name="weewx-ecowitt-${GITHUB_REF_NAME#v}"
+          mkdir -p "build/${name}"
+          cp -r install.py bin LICENSE README.md CHANGELOG.md "build/${name}/"
+          find "build/${name}" -name '__pycache__' -type d -prune -exec rm -rf {} +
+          (cd build && zip -qr "../${name}.zip" "${name}")
+          echo "ASSET=${name}.zip" >> "$GITHUB_ENV"
+
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ASSET }}
+          body: |
+            Install with:
+
+                weectl extension install https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/${{ env.ASSET }}
+
+            See CHANGELOG.md for what changed.
