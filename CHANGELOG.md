@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.0 (2026-08-25)
+
+The driver now answers only to the consoles it knows. The first one it hears is
+adopted and recorded; anything else is refused until it is named under `[[stations]]`
+with a field map of its own. Two consoles both number their channels from one, so
+without this a WN34 on channel 1 of each lands in the same column, and afterwards
+neither can be recovered. The list is kept in the database, beside the readings it
+protects, with a text file as fallback.
+
+The console's own timestamp is believed within a window that fits a late upload:
+an hour behind, a minute ahead. Consoles with an internet connection keep their
+clock by NTP, so a stamp a few minutes old means the upload was held up rather than
+that the clock is wrong. Both limits are configurable as `max_behind` and
+`max_ahead`. On WeeWX before 5.5, where a packet from an interval that has already
+been written cannot reach it, set `max_behind = 90`.
+
 ## 0.2.1 (2026-08-25)
 
 A second console is now noticed without being configured. The driver tracks which
