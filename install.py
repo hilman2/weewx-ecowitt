@@ -43,6 +43,7 @@ class EcowittInstaller(ExtensionInstaller):
                                       'bin/user/ecowitt/__main__.py',
                                       'bin/user/ecowitt/catalog.py',
                                       'bin/user/ecowitt/columns.py',
+                                      'bin/user/ecowitt/consoles.py',
                                       'bin/user/ecowitt/driver.py',
                                       'bin/user/ecowitt/infer.py',
                                       'bin/user/ecowitt/mapping.py',

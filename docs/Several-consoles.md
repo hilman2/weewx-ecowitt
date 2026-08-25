@@ -1,11 +1,72 @@
-# Several consoles
+# Which console the driver listens to
 
-A second gateway is the usual way to reach sensors the first one cannot hear. Both
-send to the same driver, and both number their channels from one, so a WN34 on
-channel 1 of each would land in the same field. Whichever uploaded last would win,
-and afterwards the two readings could not be separated.
+The driver opens a port and waits. Anything on the network can send to that port, and
+Ecowitt hardware does not prove who it is. So the driver answers to the consoles it
+knows about and refuses the rest.
 
-Name them, and each gets its own mapping:
+This page explains what happens, step by step.
+
+## Why this matters at all
+
+Every Ecowitt console numbers its sensor channels from one. A WN34 on channel 1 of
+your gateway is `tf_ch1`. A WN34 on channel 1 of a second gateway is also `tf_ch1`.
+Nothing in the upload says which gateway it came from.
+
+If both were accepted without being told apart, both would land in the same database
+column. One reading would overwrite the other every few seconds, and the column would
+hold a mixture of two sensors. **That cannot be undone.** No one can look at such a
+value afterwards and say which probe it came from.
+
+Hence the rule below.
+
+## Step by step
+
+### 1. The driver starts and knows nobody
+
+Nothing configured, no console yet. The driver listens, and the first upload decides
+whose station this is.
+
+### 2. Your console uploads for the first time
+
+It says who it is in the first field of every upload:
+
+```
+PASSKEY=3178AB6B42A759F51A5A4AD72E37F8DE&stationtype=EasyWeatherPro_V5.2.7&tempf=59.7...
+```
+
+The driver adopts it, writes that value to a file, and says so:
+
+```
+INFO user.ecowitt.driver: Console '3178AB6B42A759F51A5A4AD72E37F8DE' at 192.168.1.42
+is now this driver's station, recorded in /etc/weewx/ecowitt-consoles.txt. Uploads
+from any other console are refused until it is named under [[stations]].
+```
+
+Nothing else is needed. The readings arrive from here on.
+
+### 3. Everything carries on
+
+The console uploads every 8 to 60 seconds, the driver recognises it, the readings go
+into the database. This is the normal state, and most stations never leave it.
+
+### 4. A second console appears
+
+Maybe you bought one. Maybe a neighbour typed the wrong address. Maybe you were
+testing. The driver does not know it, so the upload is ignored, and it says once:
+
+```
+WARNING user.ecowitt.driver: An upload from 192.168.1.51 carries PASSKEY
+'9A2B4C6D8E0F1A3B5C7D9E1F2A4B6C8D', which is not one of this driver's consoles.
+Ignoring it. If it is yours, add it under [[stations]] with its own field map: two
+consoles number their channels from one, and would otherwise write into the same
+fields.
+```
+
+Your first console keeps recording, without a gap. Nothing is mixed.
+
+### 5. You want the second one as well
+
+Now you decide where its sensors go. Both consoles get a name and a field map:
 
 ```ini
 [Ecowitt]
@@ -18,93 +79,99 @@ Name them, and each gets its own mapping:
             passkey = 3178AB6B42A759F51A5A4AD72E37F8DE
             [[[[field_map_extensions]]]]
                 tf_ch1 = soilTemp1          # spike in the raised bed
-                soil_ec_temp1 = soilTemp2
 
         [[[roof]]]
             passkey = 9A2B4C6D8E0F1A3B5C7D9E1F2A4B6C8D
             [[[[field_map_extensions]]]]
-                tf_ch1 = extraTemp12        # the same channel, a different sensor
+                tf_ch1 = extraTemp12        # same channel number,
+                                            # different sensor
 ```
 
-One port, one listener. The consoles are told apart by the `PASSKEY` they send first
-in every upload, which is derived from their hardware address and does not change.
+Restart WeeWX. Both consoles record now, each into fields of its own, and every packet
+says which console it came from in a field called `station`.
 
-## If you have not configured them yet
+### 6. WeeWX restarts
 
-The driver notices on its own. It keeps track of which console wrote which field, and
-the moment a second one writes a field the first already owns, it says so and drops
-the newcomer's value rather than writing it over the other:
+The driver reads the file, or your `[[stations]]` section, and knows at once who it
+answers to. Nothing is learned again, and nothing depends on which console happens to
+upload first.
 
-```
-WARNING user.ecowitt.driver: Two consoles are sending here, and both write
-'extraTemp9'. The readings from 'BBBBBBBB' are being dropped, because mixing two
-sensors into one column cannot be undone afterwards. Give each console its own field
-map under [[stations]], one entry per PASSKEY.
-```
+That last point is the whole reason for the file. Without it, a restart would hand the
+station to whichever console spoke first, and on a station where one uploads every 8
+seconds and another every 60, that is a coin toss. The column would end up holding
+both sensors anyway, just further apart in time.
 
-Only the field that clashes is dropped. Everything else from that console arrives as
-usual, so a second gateway carrying sensors the first one does not is not held up at
-all:
+## Where the file is
+
+Beside `weewx.conf`, called `ecowitt-consoles.txt`:
 
 ```
-Gateway A : {'extraTemp9': 66.0, 'outTemp': 59.7}
-Gateway B : {'soilMoist1': 30.0}
+# Consoles this WeeWX driver answers to, one PASSKEY per line.
+#
+# The first console to upload was recorded here, so that a second one cannot start
+# writing into the same fields. Two consoles number their channels from one, and
+# nothing afterwards can separate two sensors that have shared a column.
+#
+# To add a console, do not edit this file. Give it a name and a field map under
+# [[stations]] in weewx.conf, so that its channels go somewhere of their own.
+#
+# To replace a console, delete its line and restart: the next one to upload is
+# adopted. To do without this file entirely, set 'passkey' in the driver section.
+
+3178AB6B42A759F51A5A4AD72E37F8DE    # first console seen, from 192.168.1.42
 ```
 
-Gateway B's `tf_ch1` is gone, because A already owns that field. Its soil sensor,
-which A does not have, comes through.
+Put it somewhere else with `console_file`:
 
-Which console keeps a field is decided by which one sent it first after the driver
-started. That is arbitrary, but it is stable: the series that is already running
-keeps running. Naming both consoles under `[[stations]]` removes the restriction, and
-then each writes wherever you send it.
+```ini
+[Ecowitt]
+    console_file = /var/lib/weewx/my-consoles.txt
+```
+
+If it cannot be written, the driver says so and carries on. The console is then
+learned again after every restart, which works, but leaves the coin toss in place. Set
+`passkey` instead.
+
+## Doing without the file
+
+Name the console in the configuration, and nothing is learned or stored:
+
+```ini
+[Ecowitt]
+    passkey = 3178AB6B42A759F51A5A4AD72E37F8DE
+```
+
+This is the tidiest arrangement, and the only one that survives a rebuilt machine
+without anyone having to think about it.
+
+## Common situations
+
+**I replaced my console.** A new console has a new PASSKEY, because it comes from the
+hardware. Delete the line in the file and restart, or change `passkey` in the
+configuration.
+
+**I moved the sensors to a new gateway.** Same thing. The gateway holds the PASSKEY,
+not the sensors.
+
+**My readings stopped after I changed something.** Look for the refusal warning in the
+log. It names the PASSKEY that was ignored, which is usually the new console.
+
+**I use the Wunderground protocol.** Those uploads carry `ID` instead of `PASSKEY`,
+and it is used the same way.
+
+**My hardware sends neither.** Then it cannot be told apart from anything else, and
+the driver accepts it as its station. Nothing more is possible at the protocol level.
 
 ## Finding a PASSKEY
 
-It is the first value in the upload:
-
-```
-PASSKEY=3178AB6B42A759F51A5A4AD72E37F8DE&stationtype=EasyWeatherPro_V5.2.7&...
-```
-
-Point the console at the diagnostic command for one upload and read it from there:
+It is the first value in any upload. The simplest way to see it:
 
 ```
 python -m user.ecowitt --port 8001
 ```
 
-Or turn on `log_raw` and take it from the log. Keep it out of anything public: it is
-what Ecowitt's servers use to recognise your station.
+Point the console at that port for one upload, read the value, change it back. Or look
+in `ecowitt-consoles.txt`, where the driver has already written it.
 
-## What changes
-
-Every packet carries `station` with the name you gave, so a report can tell them
-apart. `infer_unknown` can be set per console as well as for the whole driver.
-
-An upload whose PASSKEY is in no `[[stations]]` entry is ignored, and the driver says
-so once:
-
-```
-WARNING user.ecowitt.driver: An upload from 192.168.1.51 carries PASSKEY 'CCCC',
-which is not one of the consoles configured under [[stations]]. Ignoring it. Add it
-there to keep its readings.
-```
-
-That is deliberate. A station this driver does not know is more likely a neighbour, a
-scanner, or a console you forgot about than something whose readings belong in your
-database.
-
-## When not to use this
-
-**One console.** Leave `[[stations]]` out entirely and use `field_map_extensions` at
-the top level, as before. Nothing changes.
-
-**Two separate installations.** If the consoles measure different places and their
-readings should not share a database, run two WeeWX instances instead. See the WeeWX
-wiki article *Run multiple instances of WeeWX on one computer*.
-
-**Different hardware.** An Ecowitt and a Davis in one WeeWX is what
-[MetaDriver](https://github.com/tkeffer/weewx-metadriver) is for. It runs several
-drivers side by side. This section is for several consoles of the same kind, which
-MetaDriver cannot do: a driver's `loader()` reads its own configuration section by a
-fixed name, so the same driver cannot be loaded twice.
+Keep it out of anything public. It is what Ecowitt's own servers use to recognise your
+station.

@@ -18,6 +18,8 @@ import http.client
 
 import pytest
 
+FIXTURE_PASSKEY = '0000000000000000000000000000AAAA'
+
 weewx = pytest.importorskip('weewx', reason="WeeWX is not installed")
 
 from ecowitt import mapping                                  # noqa: E402
@@ -26,7 +28,7 @@ from ecowitt.driver import EcowittDriver                     # noqa: E402
 
 @pytest.fixture
 def driver():
-    made = EcowittDriver(port=0, address='127.0.0.1', report_file='')
+    made = EcowittDriver(port=0, address='127.0.0.1', passkey=FIXTURE_PASSKEY, report_file='')
     yield made
     made.closePort()
 
@@ -50,7 +52,7 @@ def test_a_parser_that_raises_costs_one_packet(driver, monkeypatch):
         raise KeyError('totalrainin')
 
     monkeypatch.setattr(mapping.Mapper, 'to_packet', explode)
-    post(driver, 'tempf=59.7')
+    post(driver, 'PASSKEY=%s&tempf=59.7' % FIXTURE_PASSKEY)
 
     packets = driver.genLoopPackets()
     # The bad one is consumed and logged while the parser is still broken. Repairing
@@ -58,7 +60,7 @@ def test_a_parser_that_raises_costs_one_packet(driver, monkeypatch):
     import threading
     def repair_and_send():
         monkeypatch.undo()
-        post(driver, 'tempf=61.0')
+        post(driver, 'PASSKEY=%s&tempf=61.0' % FIXTURE_PASSKEY)
     threading.Timer(0.5, repair_and_send).start()
 
     assert next(packets)['outTemp'] == 61.0
@@ -69,23 +71,23 @@ def test_rubbish_costs_nothing(driver):
                  'nosuchfield=1']:
         assert post(driver, junk) == 200
 
-    post(driver, 'tempf=62.0')
+    post(driver, 'PASSKEY=%s&tempf=62.0' % FIXTURE_PASSKEY)
     assert next(driver.genLoopPackets())['outTemp'] == 62.0
 
 
 def test_an_oversized_upload_is_refused_not_read(driver):
     assert post(driver, 'x' * 200000) == 413
 
-    post(driver, 'tempf=63.0')
+    post(driver, 'PASSKEY=%s&tempf=63.0' % FIXTURE_PASSKEY)
     assert next(driver.genLoopPackets())['outTemp'] == 63.0
 
 
 def test_a_response_that_raises_still_stores_the_reading():
     """The device gets an empty 200 rather than nothing at all."""
-    made = EcowittDriver(port=0, address='127.0.0.1', report_file='',
+    made = EcowittDriver(port=0, address='127.0.0.1', passkey=FIXTURE_PASSKEY, report_file='',
                          response=lambda request: 1 / 0)
     try:
-        assert post(made, 'tempf=64.0') == 200
+        assert post(made, 'PASSKEY=%s&tempf=64.0' % FIXTURE_PASSKEY) == 200
         assert next(made.genLoopPackets())['outTemp'] == 64.0
     finally:
         made.closePort()

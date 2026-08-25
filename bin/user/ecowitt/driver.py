@@ -26,7 +26,7 @@ import weewx
 import weewx.drivers
 import weewx.units
 
-from . import VERSION, protocol, report
+from . import VERSION, consoles, protocol, report
 from .mapping import Mapper
 
 try:
@@ -49,7 +49,18 @@ ECOWITT_RESPONSE = '{"errcode":"0","errmsg":"ok"}'
 
 
 def loader(config_dict, _engine):
-    return EcowittDriver(**config_dict[DRIVER_NAME])
+    options = dict(config_dict[DRIVER_NAME])
+    # The console list belongs with the readings it protects, so the driver is given
+    # what it needs to reach the database.
+    options.setdefault('config_dict', config_dict)
+    # Where to keep the list of consoles this driver answers to. Beside weewx.conf,
+    # unless the driver section says otherwise.
+    options.setdefault('weewx_root', config_dict.get('WEEWX_ROOT'))
+    options.setdefault('sqlite_root',
+                       config_dict.get('DatabaseTypes', {})
+                                  .get('SQLite', {})
+                                  .get('SQLITE_ROOT'))
+    return EcowittDriver(**options)
 
 
 def confeditor_loader():
@@ -76,12 +87,18 @@ class EcowittDriver(weewx.drivers.AbstractDevice):
         for mapper in self._mappers():
             self._register_units(mapper.wanted_groups())
         self.unknown_consoles = set()
-        # Which fields each console has written, when they share one mapping. A second
-        # console is common: people add a gateway to reach sensors the first cannot
-        # hear. Both number their channels from one, so the same field can arrive from
-        # both, and the later one would overwrite a reading nothing can recover.
-        self.written_by = {}
-        self.collisions = set()
+
+        # Which consoles to answer to. Anyone who can reach the port can point a
+        # console at it, and a second one writing the same channels would mix two
+        # sensors into one column. So the driver accepts the ones it knows and
+        # refuses the rest.
+        self.console_file = consoles.path_for(stn_dict.get('weewx_root'),
+                                              stn_dict.get('console_file'),
+                                              stn_dict.get('sqlite_root'))
+        self.store = consoles.Store(self.console_file, stn_dict.get('config_dict'),
+                                    stn_dict.get('data_binding', 'wx_binding'))
+        self.configured_passkey = stn_dict.get('passkey')
+        self.known = self._known_consoles(self.configured_passkey)
 
         listener_options = dict(stn_dict)
         listener_options.pop('driver', None)
@@ -90,6 +107,12 @@ class EcowittDriver(weewx.drivers.AbstractDevice):
         listener_options.pop('model', None)
         listener_options.pop('report_file', None)
         listener_options.pop('stations', None)
+        listener_options.pop('passkey', None)
+        listener_options.pop('console_file', None)
+        listener_options.pop('weewx_root', None)
+        listener_options.pop('sqlite_root', None)
+        listener_options.pop('data_binding', None)
+        listener_options.pop('config_dict', None)
         listener_options.setdefault('response', ECOWITT_RESPONSE)
         listener_options.setdefault('content_type', 'application/json')
 
@@ -124,20 +147,71 @@ class EcowittDriver(weewx.drivers.AbstractDevice):
             return [self.mapper]
         return [mapper for _name, mapper in self.stations.values()]
 
+    def _known_consoles(self, passkey):
+        """The PASSKEYs this driver answers to.
+
+        From the driver section, from [[stations]], or from the file where the first
+        console ever heard was recorded. Empty means nothing has been heard yet, and
+        the next console to upload is adopted.
+        """
+        known = set(self.stations)
+        if passkey:
+            known.add(str(passkey).strip())
+        if known:
+            return known
+        remembered = set(self.store.read())
+        if remembered:
+            log.info("Answering to %d console(s) on record in the %s",
+                     len(remembered), self.store.where)
+        return remembered
+
+    def _adopt(self, passkey, client):
+        """Record the first console ever heard, and answer to it from then on."""
+        self.known.add(passkey)
+        where = self.store.add(passkey, "first console seen, from %s" % client)
+        log.info("Console '%s' at %s is now this driver's station, on record in the "
+                 "%s. Uploads from any other console are refused until it is named "
+                 "under [[stations]].", passkey, client, where or 'log only')
+        self._suggest_passkey(passkey)
+
+    def _suggest_passkey(self, passkey):
+        """Point at the setting that does not depend on a file surviving.
+
+        The file is a convenience. A copied database, a rebuilt machine or a
+        directory nobody backed up leaves it behind, and then the next console to
+        upload becomes the station. One line in weewx.conf does not have that
+        problem, so say so where somebody will see it.
+        """
+        if self.configured_passkey or self.stations:
+            return
+        log.info("To keep it independent of anything stored, put it in weewx.conf: "
+                 "'passkey = %s' under [Ecowitt].", passkey)
+
     def _mapper_for(self, text, client):
         """Which mapping this upload belongs to, or None to leave it alone."""
+        passkey = protocol.station_id(text)
+
+        if not self.known:
+            self._adopt(passkey, client)
+
+        if passkey not in self.known:
+            self._refuse(passkey, client)
+            return None, None
+
         if self.mapper is not None:
             return None, self.mapper
-        passkey = protocol.station_id(text)
-        found = self.stations.get(passkey)
-        if found:
-            return found
-        if passkey not in self.unknown_consoles:
-            self.unknown_consoles.add(passkey)
-            log.warning("An upload from %s carries PASSKEY '%s', which is not one of "
-                        "the consoles configured under [[stations]]. Ignoring it. Add "
-                        "it there to keep its readings.", client, passkey)
-        return None, None
+        return self.stations[passkey]
+
+    def _refuse(self, passkey, client):
+        if passkey in self.unknown_consoles:
+            return
+        self.unknown_consoles.add(passkey)
+        log.warning(
+            "An upload from %s carries PASSKEY '%s', which is not one of this "
+            "driver's consoles. Ignoring it. If it is yours, add it under "
+            "[[stations]] with its own field map: two consoles number their channels "
+            "from one, and would otherwise write into the same fields.",
+            client, passkey)
 
     def genLoopPackets(self):
         for request in self.listener:
@@ -152,8 +226,6 @@ class EcowittDriver(weewx.drivers.AbstractDevice):
             if guesses:
                 self._register_units(mapper.wanted_groups())
             self._maybe_report(request.text, guesses)
-            if self.mapper is not None:
-                packet = self._one_console_per_field(packet, request.text)
             if len(packet) <= 1:
                 # Nothing but the timestamp. Usually a probe or a health check.
                 continue
@@ -161,42 +233,6 @@ class EcowittDriver(weewx.drivers.AbstractDevice):
             if name:
                 packet['station'] = name
             yield packet
-
-    def _one_console_per_field(self, packet, text):
-        """Keep a second console from overwriting the first, field by field.
-
-        Only for stations that have not named their consoles. Two gateways is a
-        normal arrangement and mostly harmless, because they usually carry different
-        sensors. It stops being harmless when they carry the same channel: whichever
-        uploaded last would win, and the two series could never be separated again.
-
-        So the console that got there first keeps the field, and the other one's
-        reading is dropped rather than written over it.
-        """
-        console = protocol.station_id(text)
-        dropped = []
-        for field in list(packet):
-            if field == 'dateTime':
-                continue
-            owner = self.written_by.setdefault(field, console)
-            if owner != console:
-                del packet[field]
-                dropped.append(field)
-        if dropped:
-            self._say_collision(console, dropped)
-        return packet
-
-    def _say_collision(self, console, dropped):
-        fresh = [field for field in dropped if field not in self.collisions]
-        if not fresh:
-            return
-        self.collisions.update(fresh)
-        log.warning(
-            "Two consoles are sending here, and both write %s. The readings from '%s' "
-            "are being dropped, because mixing two sensors into one column cannot be "
-            "undone afterwards. Give each console its own field map under "
-            "[[stations]], one entry per PASSKEY. See the Several consoles page.",
-            ', '.join("'%s'" % f for f in sorted(fresh)), console)
 
     def _maybe_report(self, payload, guesses):
         """Write out one upload, the first time something cannot be placed.
