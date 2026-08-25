@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.2 (2026-08-25)
+
+The listener now says when it has stopped listening. A dead thread used to look
+exactly like a station that had gone quiet, and a driver waiting on it would have
+waited for good.
+
+Tests for the failure modes: a parser that raises costs one packet rather than the
+process, rubbish and oversized uploads cost nothing, a response callback that raises
+still stores the reading, and a flood drops readings rather than growing without
+limit.
+
 ## 0.1.1 (2026-08-25)
 
 Fixes an installation that could not start. `install.py` left out `columns.py`,

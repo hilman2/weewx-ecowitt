@@ -5,4 +5,4 @@
 #
 """A WeeWX driver for Ecowitt hardware that uploads to a custom server."""
 
-VERSION = '0.1.1'
+VERSION = '0.1.2'
