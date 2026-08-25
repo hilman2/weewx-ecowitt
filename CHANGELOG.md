@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0 (2026-08-25)
+
+Several consoles can now share one driver, told apart by the PASSKEY each sends.
+Each gets its own field map, so a WN34 on channel 1 of one console and channel 1 of
+another no longer land in the same field. Every packet carries `station` with the
+name given to it. Configure them under `[[stations]]`; leave it out and nothing
+changes for a single console.
+
 ## 0.1.2 (2026-08-25)
 
 The listener now says when it has stopped listening. A dead thread used to look

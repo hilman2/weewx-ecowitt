@@ -14,6 +14,7 @@ A WeeWX driver for Ecowitt hardware that uploads to a custom server.
 - **[Hardware](Hardware)** — every device: arrays, consoles, sensors, and the older Fine Offset kit
 - **[Sensors](Sensors)** — every field this driver knows, by sensor
 - **[Unknown fields](Unknown-fields)** — what happens to a field the catalog misses
+- **[Several consoles](Several-consoles)** — a second gateway, without the two overwriting each other
 - **[Database columns](Database-columns)** — which columns a station needs, and how to add them
 
 ## When something is missing

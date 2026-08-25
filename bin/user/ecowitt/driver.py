@@ -26,7 +26,7 @@ import weewx
 import weewx.drivers
 import weewx.units
 
-from . import VERSION, report
+from . import VERSION, protocol, report
 from .mapping import Mapper
 
 try:
@@ -64,9 +64,18 @@ class EcowittDriver(weewx.drivers.AbstractDevice):
                  DRIVER_VERSION, LISTENER_FROM)
 
         self.model = stn_dict.get('model', 'Ecowitt')
-        self.mapper = Mapper(extensions=dict(stn_dict.get('field_map_extensions', {})),
-                             infer_unknown=stn_dict.get('infer_unknown', 'series'))
-        self._register_units(self.mapper.wanted_groups())
+        self.infer_unknown = stn_dict.get('infer_unknown', 'series')
+
+        # One mapping, or one per console. Two consoles both number their channels
+        # from one, so without this a WN34 on channel 1 of each would overwrite the
+        # other, and afterwards neither could be recovered.
+        self.stations = self._read_stations(stn_dict.get('stations'))
+        self.mapper = None if self.stations else Mapper(
+            extensions=dict(stn_dict.get('field_map_extensions', {})),
+            infer_unknown=self.infer_unknown)
+        for mapper in self._mappers():
+            self._register_units(mapper.wanted_groups())
+        self.unknown_consoles = set()
 
         listener_options = dict(stn_dict)
         listener_options.pop('driver', None)
@@ -74,6 +83,7 @@ class EcowittDriver(weewx.drivers.AbstractDevice):
         listener_options.pop('infer_unknown', None)
         listener_options.pop('model', None)
         listener_options.pop('report_file', None)
+        listener_options.pop('stations', None)
         listener_options.setdefault('response', ECOWITT_RESPONSE)
         listener_options.setdefault('content_type', 'application/json')
 
@@ -86,20 +96,62 @@ class EcowittDriver(weewx.drivers.AbstractDevice):
     def hardware_name(self):
         return self.model
 
+    def _read_stations(self, configured):
+        """Return {PASSKEY: (name, Mapper)} for a station with several consoles."""
+        if not configured:
+            return {}
+        stations = {}
+        for name, options in configured.items():
+            passkey = options.get('passkey')
+            if not passkey:
+                raise ValueError("Station '%s' has no 'passkey'. It is the value the "
+                                 "console sends first in every upload." % name)
+            stations[str(passkey).strip()] = (name, Mapper(
+                extensions=dict(options.get('field_map_extensions', {})),
+                infer_unknown=options.get('infer_unknown', self.infer_unknown)))
+        log.info("Listening for %d consoles: %s",
+                 len(stations), ', '.join(sorted(n for n, _ in stations.values())))
+        return stations
+
+    def _mappers(self):
+        if self.mapper is not None:
+            return [self.mapper]
+        return [mapper for _name, mapper in self.stations.values()]
+
+    def _mapper_for(self, text, client):
+        """Which mapping this upload belongs to, or None to leave it alone."""
+        if self.mapper is not None:
+            return None, self.mapper
+        passkey = protocol.station_id(text)
+        found = self.stations.get(passkey)
+        if found:
+            return found
+        if passkey not in self.unknown_consoles:
+            self.unknown_consoles.add(passkey)
+            log.warning("An upload from %s carries PASSKEY '%s', which is not one of "
+                        "the consoles configured under [[stations]]. Ignoring it. Add "
+                        "it there to keep its readings.", client, passkey)
+        return None, None
+
     def genLoopPackets(self):
         for request in self.listener:
+            name, mapper = self._mapper_for(request.text, request.client_address)
+            if mapper is None:
+                continue
             try:
-                packet, guesses = self.mapper.to_packet(request.text)
+                packet, guesses = mapper.to_packet(request.text)
             except Exception as e:
                 log.error("Cannot read a payload from %s: %s", request.client_address, e)
                 continue
             if guesses:
-                self._register_units(self.mapper.wanted_groups())
+                self._register_units(mapper.wanted_groups())
             self._maybe_report(request.text, guesses)
             if len(packet) <= 1:
                 # Nothing but the timestamp. Usually a probe or a health check.
                 continue
             packet['usUnits'] = weewx.US
+            if name:
+                packet['station'] = name
             yield packet
 
     def _maybe_report(self, payload, guesses):
@@ -111,8 +163,10 @@ class EcowittDriver(weewx.drivers.AbstractDevice):
         """
         if self.reported or not self.report_file:
             return
-        waiting = {raw: field for raw, field in self.mapper.undecided.items()
-                   if raw in self.mapper.warned}
+        waiting = {}
+        for mapper in self._mappers():
+            waiting.update({raw: field for raw, field in mapper.undecided.items()
+                            if raw in mapper.warned})
         if not guesses and not waiting:
             return
         self.reported = True

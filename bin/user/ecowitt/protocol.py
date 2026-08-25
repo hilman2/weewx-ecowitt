@@ -117,3 +117,13 @@ def redact(text):
         text = re.sub(r'(^|[?&])%s=[^&]*' % re.escape(name),
                       r'\g<1>%s=X' % name, text)
     return text
+
+
+def station_id(text):
+    """The PASSKEY, which identifies the console that sent this.
+
+    Read without parsing the rest, because on a station with several consoles this
+    runs before anything else and decides which mapping the payload belongs to.
+    """
+    match = re.search(r'(^|[?&])PASSKEY=([^&]*)', text or '')
+    return match.group(2) if match else None

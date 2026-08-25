@@ -100,6 +100,7 @@ outside the standard schema need `weectl database add-column` first.
 | [Hardware](docs/Hardware.md) | every device: arrays, consoles, sensors, older Fine Offset kit |
 | [Sensors](docs/Sensors.md) | every field this driver knows, by sensor |
 | [Unknown fields](docs/Unknown-fields.md) | what happens to a field the catalog misses |
+| [Several consoles](docs/Several-consoles.md) | a second gateway, without the two overwriting each other |
 | [Database columns](docs/Database-columns.md) | which columns a station needs |
 | [Diagnostics](docs/Diagnostics.md) | one command that answers most questions |
 | [Reporting a new sensor](docs/New-sensors.md) | exactly what to send |
