@@ -6,37 +6,27 @@ labels: sensor
 ---
 
 <!--
-Everything below comes from one command, run on the machine that runs WeeWX:
+The raw upload is what is needed. Get it with one command on the machine running
+WeeWX, then point the console at that port for one upload:
 
     python -m user.ecowitt --port 8001
 
-Then point the console at port 8001 for one upload (WS View Plus, Weather Services,
-Customized), and change it back afterwards.
+REPLACE YOUR PASSKEY before posting. It is the first value in the upload and
+identifies your station to Ecowitt. The rest is weather data.
 
-REPLACE YOUR PASSKEY. It is the first value in the upload and identifies your station
-to Ecowitt. Everything else in the payload is weather data.
+The payload already carries the console model and its firmware, so nothing else is
+needed for a sensor whose field names follow a known pattern.
 -->
-
-## The sensor
-
-| | |
-|---|---|
-| Model | e.g. WN34S |
-| Channel | e.g. 3 |
-| Where it sits | e.g. 30 cm deep in a raised bed |
-| What the app shows | e.g. 18.7 °C at 14:05 |
-
-## The station
-
-| | |
-|---|---|
-| Console or gateway | e.g. HP2561AE Pro |
-| Firmware | e.g. V2.1.4 |
-| WeeWX version | `weectl --version` |
-| Driver version | from the log at startup |
 
 ## What the station sent
 
 ```
-paste the whole output of python -m user.ecowitt here, PASSKEY replaced
+paste the upload here, PASSKEY replaced
 ```
+
+## If this is a kind of sensor nobody has seen before
+
+<!-- Only then. A field name like bgt=75.3 says neither the quantity nor the unit. -->
+
+- What the sensor is:
+- What the WS View Plus app shows for it at the same moment:
