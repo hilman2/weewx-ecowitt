@@ -19,6 +19,12 @@ from . import catalog, infer, protocol
 log = logging.getLogger(__name__)
 
 # What to do about a field the catalog does not cover.
+# Sensors that share one pool of channel numbers, so channel 3 is one channel with
+# either probe in it. If both ever arrive for the same number, that is worth saying.
+SHARED_CHANNELS = [
+    ('soilmoisture', 'soil_ec_hum'),
+]
+
 OFF = 'off'          # drop it, the way every other driver does
 SERIES = 'series'    # take it when it continues a series, report the rest
 ALL = 'all'          # take whatever can be named, including from rules
@@ -54,6 +60,7 @@ class Mapper:
         # mapping or a known refusal, and either way it does not need saying again.
         self.seen = {}
         self.ignored = set()
+        self.warned = set()
 
     def to_packet(self, text, now=None):
         """Return (packet, guesses) for one payload.
@@ -65,6 +72,8 @@ class Mapper:
         """
         raw = protocol.parse(text)
         readings, _ = protocol.numbers(raw)
+
+        self._check_shared_channels(readings)
 
         packet = {}
         fresh = []
@@ -80,6 +89,26 @@ class Mapper:
         packet['dateTime'] = int(stamp if stamp is not None
                                  else (now if now is not None else _now()))
         return packet, fresh
+
+    def _check_shared_channels(self, readings):
+        """Warn if two sensors turn out to be writing the same field after all.
+
+        A WH51 and a WH52 are documented with sixteen channels each, but the console
+        compatibility table gives them one pool of sixteen between them, so the same
+        channel number should never arrive from both. If it does, the assumption is
+        wrong and one of the readings is about to overwrite the other.
+        """
+        for first, second in SHARED_CHANNELS:
+            for name in readings:
+                if not name.startswith(first):
+                    continue
+                twin = second + name[len(first):]
+                if twin in readings and (name, twin) not in self.warned:
+                    self.warned.add((name, twin))
+                    log.warning("Both '%s' and '%s' arrived, and they map to the same "
+                                "field. One will overwrite the other. Give one of them "
+                                "a field of its own in field_map_extensions.",
+                                name, twin)
 
     def _unmapped(self, name, fresh):
         """Decide what happens to a field that is not in the mapping."""

@@ -170,3 +170,26 @@ def test_a_derived_channel_can_be_redirected_too():
 
     assert packet['extraTemp6'] == 78.4
     assert guesses == []
+
+
+def test_two_sensors_on_one_channel_are_flagged(caplog):
+    """A WH51 and a WH52 should never send the same channel. If they do, say so."""
+    import logging
+
+    with caplog.at_level(logging.WARNING):
+        packet, _ = Mapper().to_packet('soilmoisture3=30&soil_ec_hum3=45')
+
+    assert 'One will overwrite the other' in caplog.text
+    assert packet['soilMoist3'] in (30.0, 45.0)
+
+
+def test_the_warning_is_said_once(caplog):
+    import logging
+
+    mapper = Mapper()
+    with caplog.at_level(logging.WARNING):
+        mapper.to_packet('soilmoisture3=30&soil_ec_hum3=45')
+        caplog.clear()
+        mapper.to_packet('soilmoisture3=31&soil_ec_hum3=46')
+
+    assert caplog.text == ''

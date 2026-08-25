@@ -116,6 +116,19 @@ The catalog carries the figures from Ecowitt's compatibility table, and they do 
 than document: a channel past the end of a family is reported rather than derived,
 because either the table is out of date or something else is going on.
 
+They are checked rather than trusted. `tools/check_against_ecowitt.py` reads the
+sensor families out of Ecowitt's own API documentation and compares them:
+
+    Ecowitt family           model    documented ours
+    leaf_ch                  WN35     8          8
+    soil_ch                  WH51     16         16
+    soil_moisture_ec_ch      WH52     16         16
+    temp_and_humidity_ch     WH31     8          8
+    temp_ch                  WN34     8          8
+
+That last line is also the plainest answer to where a WN34 belongs. Ecowitt calls its
+family `temp_ch`, not soil anything.
+
 | Sensor | Channels | Placement |
 |---|---|---|
 | WH31 and relatives | 8 | yours |
@@ -129,6 +142,10 @@ because either the table is out of date or something else is going on.
 
 The WH51 and the WH52 share one pool of 16, so `soilmoisture3` and `soil_ec_hum3` are
 the same channel with a different probe in it. They map to the same field on purpose.
+
+The cloud API documents sixteen channels for each of them separately, which would make
+that wrong, so the driver does not simply assume it: if both ever arrive for the same
+channel, it says so once and tells you to give one of them a field of its own.
 
 ## Where the fields come from
 
