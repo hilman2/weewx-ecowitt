@@ -16,6 +16,7 @@ work testable from a captured payload.
 """
 
 import logging
+import re
 import time
 import urllib.parse
 
@@ -100,3 +101,19 @@ def numbers(raw):
         except (TypeError, ValueError):
             text[name] = value
     return readings, text
+
+
+# Values that identify a station rather than describe the weather.
+SECRETS = ('PASSKEY', 'ID', 'PASSWORD', 'key', 'stationkey')
+
+
+def redact(text):
+    """Replace the values that identify a station, leaving the readings alone.
+
+    A payload is going to be pasted into an issue tracker, and the PASSKEY is what
+    Ecowitt's servers use to recognise a station. Everything else in there is weather.
+    """
+    for name in SECRETS:
+        text = re.sub(r'(^|[?&])%s=[^&]*' % re.escape(name),
+                      r'\g<1>%s=X' % name, text)
+    return text

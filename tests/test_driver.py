@@ -9,6 +9,7 @@ Needs WeeWX installed. Everything below this level is tested without it.
 """
 
 import http.client
+import os
 
 import pytest
 
@@ -88,3 +89,59 @@ def test_the_hardware_name_is_configurable():
         assert made.hardware_name == 'HP2561AE Pro'
     finally:
         made.closePort()
+
+
+def test_the_driver_leaves_a_report(tmp_path, payload):
+    """Getting a raw upload should not mean reconfiguring the console."""
+    path = str(tmp_path / 'report.txt')
+    made = EcowittDriver(port=0, address='127.0.0.1', report_file=path)
+    try:
+        upload(made, payload('hp2561ae_pro'))
+        next(made.genLoopPackets())
+    finally:
+        made.closePort()
+
+    text = open(path, encoding='utf-8').read()
+    assert 'PASSKEY=X' in text
+    assert 'tempinf=75.4' in text
+    assert 'tf_ch1' in text
+    assert 'issues/new' in text
+
+
+def test_the_report_is_written_once(tmp_path, payload):
+    path = str(tmp_path / 'report.txt')
+    made = EcowittDriver(port=0, address='127.0.0.1', report_file=path)
+    try:
+        upload(made, payload('hp2561ae_pro'))
+        next(made.genLoopPackets())
+        first = os.path.getmtime(path)
+        upload(made, payload('hp2561ae_pro'))
+        next(made.genLoopPackets())
+    finally:
+        made.closePort()
+
+    assert os.path.getmtime(path) == first
+
+
+def test_reporting_can_be_switched_off(tmp_path, payload):
+    path = str(tmp_path / 'report.txt')
+    made = EcowittDriver(port=0, address='127.0.0.1', report_file='')
+    try:
+        upload(made, payload('hp2561ae_pro'))
+        next(made.genLoopPackets())
+    finally:
+        made.closePort()
+
+    assert not os.path.exists(path)
+
+
+def test_a_station_with_nothing_unknown_leaves_no_report(tmp_path):
+    path = str(tmp_path / 'report.txt')
+    made = EcowittDriver(port=0, address='127.0.0.1', report_file=path)
+    try:
+        upload(made, 'tempf=59.7&humidity=82')
+        next(made.genLoopPackets())
+    finally:
+        made.closePort()
+
+    assert not os.path.exists(path)

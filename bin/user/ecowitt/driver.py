@@ -26,7 +26,7 @@ import weewx
 import weewx.drivers
 import weewx.units
 
-from . import VERSION
+from . import VERSION, report
 from .mapping import Mapper
 
 try:
@@ -73,8 +73,13 @@ class EcowittDriver(weewx.drivers.AbstractDevice):
         listener_options.pop('field_map_extensions', None)
         listener_options.pop('infer_unknown', None)
         listener_options.pop('model', None)
+        listener_options.pop('report_file', None)
         listener_options.setdefault('response', ECOWITT_RESPONSE)
         listener_options.setdefault('content_type', 'application/json')
+
+        self.report_file = stn_dict.get('report_file', report.DEFAULT_PATH)
+        self.reported = False
+
         self.listener = HTTPListener(**listener_options)
 
     @property
@@ -90,11 +95,31 @@ class EcowittDriver(weewx.drivers.AbstractDevice):
                 continue
             if guesses:
                 self._register_units(self.mapper.wanted_groups())
+            self._maybe_report(request.text, guesses)
             if len(packet) <= 1:
                 # Nothing but the timestamp. Usually a probe or a health check.
                 continue
             packet['usUnits'] = weewx.US
             yield packet
+
+    def _maybe_report(self, payload, guesses):
+        """Write out one upload, the first time something cannot be placed.
+
+        Getting hold of a raw upload otherwise means reconfiguring the console and
+        waiting for an interval. The driver has it in hand, so it writes it once and
+        says where the file is.
+        """
+        if self.reported or not self.report_file:
+            return
+        waiting = {raw: field for raw, field in self.mapper.undecided.items()
+                   if raw in self.mapper.warned}
+        if not guesses and not waiting:
+            return
+        self.reported = True
+        path = report.write(payload, guesses, waiting, self.report_file)
+        if path:
+            log.info("This station sends fields I cannot place on my own. Everything "
+                     "needed to report them is in %s", path)
 
     def closePort(self):
         self.listener.close()
@@ -131,16 +156,13 @@ class EcowittConfEditor(weewx.drivers.AbstractConfEditor):
     #   all     keep whatever can be named, including from naming rules
     infer_unknown = series
 
-    # Some fields are placed differently by different drivers, and the wrong choice
-    # puts two sensors in one column. So this has no default: until it says something,
-    # those fields are left out and the log names them.
-    #
-    #   none            this driver's placement. For a fresh start.
-    #   ecowittcustom   keep the field names of that driver, so an existing history
-    #                   carries on where it is.
-    #   gw1000          likewise for the Ecowitt gateway driver.
-    #
-    # compat = none
+    # Where to leave a report when the station sends something the driver cannot
+    # place. Set it empty to switch that off.
+    report_file = /var/tmp/weewx-ecowitt-report.txt
+
+    # A few fields are placed differently by different drivers, and the wrong choice
+    # mixes two sensors into one column. Those are not written until you name them
+    # below. The log prints both candidate lines the first time each one arrives.
 
     # Your own mapping, which wins over the built-in one.
     [[field_map_extensions]]

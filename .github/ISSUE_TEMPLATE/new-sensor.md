@@ -6,27 +6,20 @@ labels: sensor
 ---
 
 <!--
-The raw upload is what is needed. Get it with one command on the machine running
-WeeWX, then point the console at that port for one upload:
+The driver writes out everything needed. One command, nothing to configure:
 
-    python -m user.ecowitt --port 8001
+    cat /var/tmp/weewx-ecowitt-report.txt
 
-REPLACE YOUR PASSKEY before posting. It is the first value in the upload and
-identifies your station to Ecowitt. The rest is weather data.
-
-The payload already carries the console model and its firmware, so nothing else is
-needed for a sensor whose field names follow a known pattern.
+The PASSKEY is already replaced in it. Paste the whole file below.
 -->
 
-## What the station sent
-
 ```
-paste the upload here, PASSKEY replaced
+paste /var/tmp/weewx-ecowitt-report.txt here
 ```
 
 ## If this is a kind of sensor nobody has seen before
 
-<!-- Only then. A field name like bgt=75.3 says neither the quantity nor the unit. -->
+<!-- Only then. A name like bgt=75.3 gives neither the quantity nor the unit. -->
 
 - What the sensor is:
 - What the WS View Plus app shows for it at the same moment:

@@ -1,6 +1,20 @@
 # Diagnostics
 
-One command answers most questions about a station:
+## When a sensor is missing
+
+The driver writes out what it could not place, by itself:
+
+```
+cat /var/tmp/weewx-ecowitt-report.txt
+```
+
+That file appears the first time a station sends something the driver cannot handle.
+It holds the raw upload with the PASSKEY replaced, and what the driver made of it.
+See [Reporting a new sensor](New-sensors).
+
+## Everything else
+
+One command answers the rest:
 
 ```
 python -m user.ecowitt --port 8001

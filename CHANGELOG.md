@@ -18,4 +18,7 @@ First version.
   WH52 and a lightning sensor; the other twenty-nine readings arrive as usual.
 - `python -m user.ecowitt` reports which of the fields it would write to already hold
   readings, before anything is changed.
+- When a station sends something the driver cannot place, it writes the raw upload
+  and its findings to `/var/tmp/weewx-ecowitt-report.txt`, with the PASSKEY replaced.
+  Reporting a new sensor is then one `cat` and a paste.
 - Uses `weewx.listener` where available, and ships a copy for older WeeWX.

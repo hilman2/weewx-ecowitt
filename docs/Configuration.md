@@ -62,6 +62,7 @@ that uses it.
 | `model` | Ecowitt | What reports call the station. |
 | `infer_unknown` | `series` | What happens to fields the catalog does not cover. See [Unknown fields](Unknown-fields). |
 | `field_map_extensions` | empty | Raw field to WeeWX field. Wins over everything else. See [Field map](Field-map). |
+| `report_file` | `/var/tmp/weewx-ecowitt-report.txt` | Where to leave a report when a station sends something the driver cannot place. Empty switches it off. |
 
 ## Common setups
 
